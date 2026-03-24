@@ -1,0 +1,21 @@
+[project]
+name = "jurisflow-worker"
+version = "0.1.0"
+description = "Background worker for Jurisflow."
+requires-python = ">=3.11"
+dependencies = [
+  "arq>=0.27,<1.0",
+  "jurisflow-agents",
+  "jurisflow-db",
+  "jurisflow-parsers",
+  "jurisflow-retrieval",
+  "jurisflow-shared",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

@@ -1,0 +1,11 @@
+[tool.uv.workspace]
+members = [
+  "apps/api",
+  "apps/worker",
+  "packages/agents",
+  "packages/db",
+  "packages/parsers",
+  "packages/retrieval",
+  "packages/shared",
+]
+
