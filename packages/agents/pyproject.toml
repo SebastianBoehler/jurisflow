@@ -5,6 +5,7 @@ description = "Google ADK workflow definitions for Jurisflow."
 requires-python = ">=3.11"
 dependencies = [
   "google-adk>=1.27,<2.0",
+  "litellm>=1.50,<2.0",
   "httpx>=0.28,<1.0",
   "jurisflow-db",
   "jurisflow-retrieval",
