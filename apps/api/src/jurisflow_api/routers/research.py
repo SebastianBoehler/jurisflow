@@ -92,21 +92,33 @@ async def start_research(
     return ResearchRunRead.model_validate(run)
 
 
+def _matter_context(matter_id: UUID, session: Session, tenant_id: UUID) -> dict | None:
+    """Fetch matter title/description from the DB to ground the chat agent."""
+    from jurisflow_api.services.matters import get_matter
+    matter = get_matter(session, tenant_id, matter_id)
+    if matter is None:
+        return None
+    return {"title": matter.title, "description": matter.description}
+
+
 @router.post("/v1/matters/{matter_id}/chat", response_model=ChatReply)
 async def quick_chat(
     matter_id: UUID,
     payload: ChatRequest,
+    session: Session = Depends(get_db_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ) -> ChatReply:
-    """ADK LlmAgent chat with optional web-search tool.
+    """ADK LlmAgent chat with legal tools (web search, norm text, Gutachtenstil, collision check).
 
-    Runs the JurisflowChatAgent via Google ADK + LiteLLM (OpenRouter/OpenAI).
-    The agent decides autonomously whether to call web_search for each query.
+    The agent is grounded with the matter title/description and decides autonomously
+    which tools to invoke for each query.
     """
+    context = _matter_context(matter_id, session, tenant_id)
     try:
         answer = await run_chat(
             payload.query,
             [{"role": t.role, "content": t.content} for t in payload.history],
+            matter_context=context,
         )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)[:400]) from exc
@@ -117,14 +129,18 @@ async def quick_chat(
 async def stream_chat_endpoint(
     matter_id: UUID,
     payload: ChatRequest,
+    session: Session = Depends(get_db_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ) -> StreamingResponse:
     """SSE stream of chat agent events (text deltas, tool calls, tool results)."""
+    context = _matter_context(matter_id, session, tenant_id)
+
     async def event_gen():
         try:
             async for event in stream_chat(
                 payload.query,
                 [{"role": t.role, "content": t.content} for t in payload.history],
+                matter_context=context,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as exc:

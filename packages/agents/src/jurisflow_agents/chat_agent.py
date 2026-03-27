@@ -1,4 +1,4 @@
-"""LlmAgent-based chat with optional web-search tool via Google ADK + LiteLLM."""
+"""LlmAgent-based chat with legal tools via Google ADK + LiteLLM."""
 from __future__ import annotations
 
 import os
@@ -11,6 +11,11 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import FunctionTool
 from google.genai.types import Content, Part
 
+from jurisflow_agents.legal_tools import (
+    fetch_norm_text,
+    gutachten_gliederung,
+    pruefe_normkollision,
+)
 from jurisflow_retrieval.providers.general_web import GeneralWebSearchProvider
 from jurisflow_retrieval.types import SearchRequest
 from jurisflow_shared import get_settings
@@ -19,10 +24,20 @@ _SYSTEM_INSTRUCTION = (
     "Du bist ein juristischer KI-Assistent für deutsche Rechtsanwälte. "
     "Beantworte Fragen präzise und praxisnah auf Deutsch. "
     "Verweise auf einschlägige Normen (Paragraphen, Artikel) und Urteile, "
-    "sofern sie für die Frage relevant sind. "
-    "Nutze `web_search` wenn du aktuelle Rechtsinformationen oder konkrete "
-    "Gesetzestexte benötigst — aber nicht für allgemeine Rechtsfragen, die du "
-    "aus deinem Wissen beantworten kannst."
+    "sofern sie für die Frage relevant sind.\n\n"
+    "Verfügbare Tools — setze sie gezielt ein:\n"
+    "- `web_search`: Für aktuelle Rechtsinformationen, konkrete Urteile oder Gesetzestexte, "
+    "die du nicht mit Sicherheit kennst. Nicht für allgemeine Rechtsfragen.\n"
+    "- `fetch_norm_text`: Ruft den aktuellen Wortlaut eines § direkt von "
+    "gesetze-im-internet.de ab — inklusive Geltungsstand und Querverweisen. "
+    "Nutze es, wenn du den exakten Normtext oder Verweisnormen benötigst.\n"
+    "- `gutachten_gliederung`: Gibt eine Gutachtenstil-Vorlage zurück "
+    "(Obersatz → Definition → Subsumtion → Ergebnis). "
+    "Nutze es, wenn der Nutzer eine strukturierte Rechtsprüfung oder ein Gutachten wünscht — "
+    "fülle die zurückgegebene Vorlage dann vollständig mit deiner Analyse aus.\n"
+    "- `pruefe_normkollision`: Gibt eine Kollisionsprüfungs-Vorlage (lex specialis, lex posterior, "
+    "lex superior) zurück, wenn zwei Normen potenziell in Konflikt stehen — "
+    "fülle sie mit deiner Analyse aus."
 )
 
 
@@ -61,7 +76,6 @@ def _resolve_model() -> tuple[str, str | None]:
         return settings.openrouter_model, settings.openrouter_api_key
     if settings.openai_api_key:
         os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
-        # LiteLLM recognises gpt-* without prefix; add it to be explicit
         model = settings.openai_model
         if not model.startswith("openai/"):
             model = f"openai/{model}"
@@ -69,11 +83,23 @@ def _resolve_model() -> tuple[str, str | None]:
     return "", None
 
 
-def _build_agent(history: list[dict]) -> LlmAgent:
-    """Build a fresh LlmAgent, baking prior conversation into the instruction."""
+def _build_agent(
+    history: list[dict],
+    matter_context: dict | None = None,
+) -> LlmAgent:
+    """Build a fresh LlmAgent, baking prior conversation and matter context into the instruction."""
     model_name, _ = _resolve_model()
 
     instruction = _SYSTEM_INSTRUCTION
+
+    if matter_context:
+        lines = ["\n\n[Mandatskontext]"]
+        if matter_context.get("title"):
+            lines.append(f"Mandat: {matter_context['title']}")
+        if matter_context.get("description"):
+            lines.append(f"Sachverhalt/Beschreibung: {matter_context['description']}")
+        instruction += "\n".join(lines)
+
     if history:
         lines = ["\n\n[Bisheriger Gesprächsverlauf]"]
         for turn in history:
@@ -85,16 +111,26 @@ def _build_agent(history: list[dict]) -> LlmAgent:
         name="JurisflowChatAgent",
         model=LiteLlm(model=model_name),
         instruction=instruction,
-        tools=[FunctionTool(web_search)],
+        tools=[
+            FunctionTool(web_search),
+            FunctionTool(fetch_norm_text),
+            FunctionTool(gutachten_gliederung),
+            FunctionTool(pruefe_normkollision),
+        ],
     )
 
 
-async def run_chat(query: str, history: list[dict]) -> str:
+async def run_chat(
+    query: str,
+    history: list[dict],
+    matter_context: dict | None = None,
+) -> str:
     """Run the chat agent and return the final text response.
 
     Args:
         query: The current user query.
         history: Prior turns as [{role: "user"|"assistant", content: str}].
+        matter_context: Optional matter metadata (title, description) to ground the agent.
 
     Returns:
         The agent's text response, or a helpful error message.
@@ -106,7 +142,7 @@ async def run_chat(query: str, history: list[dict]) -> str:
             "Bitte `OPENROUTER_API_KEY` oder `OPENAI_API_KEY` in der .env setzen."
         )
 
-    agent = _build_agent(history)
+    agent = _build_agent(history, matter_context)
     session_service = InMemorySessionService()
     runner = Runner(
         agent=agent,
@@ -138,6 +174,7 @@ async def run_chat(query: str, history: list[dict]) -> str:
 async def stream_chat(
     query: str,
     history: list[dict],
+    matter_context: dict | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Async generator yielding structured events from the ADK chat agent.
 
@@ -147,6 +184,11 @@ async def stream_chat(
       {"type": "tool_result", "id": str, "name": str, "output": str}
       {"type": "done"}
       {"type": "error", "message": str}
+
+    Args:
+        query: The current user query.
+        history: Prior turns as [{role: "user"|"assistant", content: str}].
+        matter_context: Optional matter metadata (title, description) to ground the agent.
     """
     _, api_key = _resolve_model()
     if not api_key:
@@ -154,7 +196,7 @@ async def stream_chat(
         yield {"type": "done"}
         return
 
-    agent = _build_agent(history)
+    agent = _build_agent(history, matter_context)
     session_service = InMemorySessionService()
     runner = Runner(agent=agent, app_name="jurisflow-chat", session_service=session_service)
     session = await session_service.create_session(app_name="jurisflow-chat", user_id="ephemeral")
@@ -183,8 +225,11 @@ async def stream_chat(
                 elif part.function_response:
                     fr = part.function_response
                     resp = fr.response or {}
-                    output = resp.get("output", str(resp)) if isinstance(resp, dict) else str(resp)
-                    result_id = getattr(fr, "id", None) or f"result_{fr.name}"
+                    if isinstance(resp, dict):
+                        output = resp.get("output") or resp.get("result") or str(resp)
+                    else:
+                        output = str(resp)
+                    result_id = getattr(fr, "id", None) or f"call_{fr.name}"
                     yield {
                         "type": "tool_result",
                         "id": result_id,

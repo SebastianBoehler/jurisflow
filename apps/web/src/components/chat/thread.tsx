@@ -1,21 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Globe, ChevronDown, ChevronRight, Scale, ArrowUp, Microscope, Plus } from "lucide-react";
+import { Globe, Scale, ArrowUp, Microscope, Plus, Loader2 } from "lucide-react";
 import {
   ThreadPrimitive,
-  MessagePrimitive,
   AssistantRuntimeProvider,
-  useMessage,
   useThreadRuntime,
 } from "@assistant-ui/react";
-import { makeMarkdownText } from "@assistant-ui/react-markdown";
+import { AssistantMessage, UserMessage } from "@/components/chat/chat-messages";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useChatRuntime, type ChatMode } from "@/components/chat/use-chat-runtime";
-
-const MarkdownText = makeMarkdownText();
 
 const DEFAULT_MODE: ChatMode = {
   deepResearch: false,
@@ -35,102 +31,6 @@ const STARTER_PROMPTS = [
   "Wie weit muss ein Blitzer vom Ortsschild entfernt stehen?",
   "Welche Voraussetzungen gelten für eine fristlose Kündigung wegen Zahlungsverzugs?",
 ];
-
-// ----------- Tool call block -----------
-function ToolCallBlock({ toolName, args, result, status }: {
-  toolName: string;
-  args: Record<string, unknown>;
-  result?: unknown;
-  status?: { type: string };
-}) {
-  const [open, setOpen] = useState(false);
-  const isRunning = status?.type === "running";
-  const label = (args?.query as string) || (args?.agent as string) || toolName;
-
-  return (
-    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
-      <button
-        className="flex w-full items-center gap-2 text-left"
-        onClick={() => result != null && setOpen((v) => !v)}
-        type="button"
-      >
-        {isRunning ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-        ) : (
-          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
-        <span className="flex-1 truncate text-foreground">{label}</span>
-        {isRunning && <span className="text-xs text-muted-foreground">läuft…</span>}
-        {result != null && !isRunning && (
-          open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </button>
-      {open && result != null && (
-        <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border bg-background p-3 text-xs leading-6 text-muted-foreground whitespace-pre-wrap">
-          {String(result)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ----------- Messages -----------
-function UserMessage() {
-  return (
-    <MessagePrimitive.Root className="flex justify-end">
-      <div className="max-w-3xl rounded-[26px] rounded-br-md bg-foreground px-5 py-4 text-[15px] leading-7 text-background">
-        <MessagePrimitive.Content />
-      </div>
-    </MessagePrimitive.Root>
-  );
-}
-
-function AssistantMessageContent() {
-  const msg = useMessage();
-  const isRunning = msg.status?.type === "running";
-
-  return (
-    <div className="space-y-3">
-      {isRunning && msg.content.length === 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Wird verarbeitet…</span>
-        </div>
-      )}
-      {msg.content.map((part, i) => {
-        if (part.type === "text") {
-          return (
-            <div key={i} className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownText>{part.text}</MarkdownText>
-            </div>
-          );
-        }
-        if (part.type === "tool-call") {
-          return (
-            <ToolCallBlock
-              key={part.toolCallId}
-              toolName={part.toolName}
-              args={part.args as Record<string, unknown>}
-              result={part.result}
-              status={part.status as { type: string } | undefined}
-            />
-          );
-        }
-        return null;
-      })}
-    </div>
-  );
-}
-
-function AssistantMessage() {
-  return (
-    <MessagePrimitive.Root className="flex justify-start">
-      <div className="max-w-4xl space-y-3 rounded-[28px] rounded-bl-md border border-border bg-card px-5 py-5 shadow-sm">
-        <AssistantMessageContent />
-      </div>
-    </MessagePrimitive.Root>
-  );
-}
 
 // ----------- Composer (inside AssistantRuntimeProvider) -----------
 function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m: ChatMode) => void }) {

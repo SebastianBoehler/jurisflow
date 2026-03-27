@@ -1,0 +1,4 @@
+interface:
+  display_name: "Legal Authority Routing"
+  short_description: "Route legal research into source lanes"
+  default_prompt: "Use $legal-authority-routing to choose legal research lanes and generate source-specific queries for this matter."
