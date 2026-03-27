@@ -6,7 +6,7 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "Fehlgeschlagen",
   complete: "Abgeschlossen",
   pending: "Ausstehend",
-  skipped: "Uebersprungen"
+  skipped: "Übersprungen"
 };
 
 const DEADLINE_KIND_LABELS: Record<string, string> = {
@@ -16,9 +16,11 @@ const DEADLINE_KIND_LABELS: Record<string, string> = {
 
 const RESEARCH_SOURCE_LABELS: Record<string, string> = {
   federal_law: "Bundesrecht",
+  state_law: "Landesrecht",
   case_law: "Rechtsprechung",
   eu_law: "EU-Recht",
-  internal_docs: "Interne Dokumente"
+  internal_docs: "Interne Dokumente",
+  general_web: "Web-Recherche"
 };
 
 export function formatStatusLabel(status: string) {

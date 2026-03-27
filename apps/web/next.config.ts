@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 const apiDestination = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/:path*`;
 
 const nextConfig: NextConfig = {
-  typedRoutes: true,
+  typedRoutes: false,
   outputFileTracingRoot: path.join(__dirname, "../.."),
   async rewrites() {
     return [

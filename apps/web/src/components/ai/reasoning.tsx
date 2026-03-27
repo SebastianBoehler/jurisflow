@@ -3,7 +3,6 @@
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Shimmer } from "@/components/ui/shimmer";
 import { cn } from "@/lib/utils";
 
 type ReasoningProps = {
@@ -34,7 +33,7 @@ export function Reasoning({ children, className, duration, isStreaming = false }
       <button className="flex w-full items-center gap-2 text-sm text-ink/58" onClick={() => setIsOpen((current) => !current)} type="button">
         <BrainIcon className="h-4 w-4 text-ember" />
         <span className="flex-1 text-left">
-          {isStreaming ? <Shimmer>Denke nach...</Shimmer> : `Begruendung in ${Math.max(duration ?? liveDuration, 1)}s`}
+          {isStreaming ? <span className="animate-pulse text-ember">Denke nach...</span> : `Begruendung in ${Math.max(duration ?? liveDuration, 1)}s`}
         </span>
         <ChevronDownIcon className={cn("h-4 w-4 transition", isOpen && "rotate-180")} />
       </button>

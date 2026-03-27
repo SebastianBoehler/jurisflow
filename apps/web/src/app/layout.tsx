@@ -16,7 +16,7 @@ const serif = Newsreader({
 
 export const metadata: Metadata = {
   title: "Jurisflow AI",
-  description: "Case-native Legal AI workspace fuer deutsche Kanzleien."
+  description: "Chat-first Legal Research Console für deutsche Kanzleien."
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

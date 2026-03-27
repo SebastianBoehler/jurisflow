@@ -1,47 +1,106 @@
-import { BotIcon, UserIcon } from "lucide-react";
+"use client";
 
+import { Loader2 } from "lucide-react";
+
+import { ChatMarkdown } from "@/components/chat/chat-markdown";
+import { ChatMessage as ChatMessageType } from "@/components/chat/chat-types";
+import { Citation } from "@/components/tool-ui/citation";
 import { cn } from "@/lib/utils";
 
-type ChatMessageProps = React.PropsWithChildren<{
-  className?: string;
-  role: "assistant" | "user";
-}>;
+type ChatMessageProps = {
+  message: ChatMessageType;
+};
 
-export function ChatMessage({ children, className, role }: ChatMessageProps) {
-  const Icon = role === "assistant" ? BotIcon : UserIcon;
-  return (
-    <div className={cn("flex gap-4", className)}>
-      <div
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border",
-          role === "assistant"
-            ? "border-charcoal/10 bg-paper text-charcoal"
-            : "border-white/12 bg-white/8 text-white"
-        )}
-      >
-        <Icon className="h-4 w-4" />
+export function ChatMessage({ message }: ChatMessageProps) {
+  if (message.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-3xl rounded-[26px] rounded-br-md bg-foreground px-5 py-4 text-[15px] leading-7 text-background">
+          {message.content}
+        </div>
       </div>
-      <div className="min-w-0 flex-1 space-y-3">{children}</div>
-    </div>
-  );
-}
+    );
+  }
 
-export function ChatBubble({ children, className, tone = "default" }: React.PropsWithChildren<{ className?: string; tone?: "default" | "subtle" }>) {
+  const isRunning = message.status === "queued" || message.status === "processing";
+
   return (
-    <div
-      className={cn(
-        "rounded-[28px] border px-5 py-4",
-        tone === "default"
-          ? "border-white/12 bg-charcoal text-paper shadow-[0_20px_40px_rgba(21,23,27,0.16)]"
-          : "border-charcoal/10 bg-paper/72 text-ink backdrop-blur",
-        className
-      )}
-    >
-      {children}
+    <div className="flex justify-start">
+      <div className="max-w-4xl space-y-4 rounded-[28px] rounded-bl-md border border-border bg-card px-5 py-5 shadow-sm">
+        {isRunning ? (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Recherche läuft…</span>
+          </div>
+        ) : null}
+
+        {message.trace.length ? (
+          <div className="flex flex-wrap gap-2">
+            {message.trace.map((step) => (
+              <span
+                key={step.key}
+                className={cn(
+                  "inline-flex items-center rounded-full border px-3 py-1 text-xs",
+                  step.status === "failed" && "border-destructive/20 bg-destructive/5 text-destructive",
+                  step.status === "skipped" && "border-border bg-muted text-muted-foreground",
+                  (step.status === "complete" || step.status === "ready") && "border-border bg-muted text-foreground",
+                  (step.status === "queued" || step.status === "processing") && "border-border bg-background text-muted-foreground"
+                )}
+                title={step.detail ?? undefined}
+              >
+                {step.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {message.error ? (
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm leading-7 text-destructive">
+            {message.error}
+          </div>
+        ) : null}
+
+        {message.content ? (
+          <ChatMarkdown content={message.content} />
+        ) : message.summary ? (
+          <p className="text-[15px] leading-7 text-foreground">{message.summary}</p>
+        ) : !isRunning ? (
+          <p className="text-[15px] leading-7 text-muted-foreground">
+            Kein Bericht verfügbar. Die Pipeline hat keine belastbare Antwort erzeugt.
+          </p>
+        ) : null}
+
+        {message.results.length ? (
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-sm font-medium text-foreground">Quellen</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {message.results.map((result) => (
+                <Citation
+                  key={result.id}
+                  domain={getDomain(result.url)}
+                  href={result.url ?? "#"}
+                  id={result.id}
+                  snippet={result.excerpt}
+                  title={result.title}
+                  type="document"
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-export function ChatMeta({ children, className }: React.PropsWithChildren<{ className?: string }>) {
-  return <div className={cn("text-[11px] font-semibold uppercase tracking-[0.22em] text-ink/42", className)}>{children}</div>;
+function getDomain(url: string | null) {
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
 }

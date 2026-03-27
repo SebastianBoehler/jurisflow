@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchResearchResults, fetchResearchRuns, startResearchRun } from "@/lib/api";
 import { ResearchRequest, ResearchResult, ResearchRun } from "@/lib/types";
@@ -20,15 +20,23 @@ export function useResearchWorkspace({ initialResultsByRun, initialRuns, matterI
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resultsByRun, setResultsByRun] = useState<Record<string, ResearchResult[]>>(initialResultsByRun);
   const [runs, setRuns] = useState<ResearchRun[]>(sortRuns(initialRuns));
+  const resultsByRunRef = useRef(resultsByRun);
 
   const hasPendingRun = useMemo(() => runs.some((run) => run.status === "queued" || run.status === "processing"), [runs]);
+
+  useEffect(() => {
+    resultsByRunRef.current = resultsByRun;
+  }, [resultsByRun]);
 
   const refreshRuns = useCallback(async () => {
     try {
       const nextRuns = sortRuns(await fetchResearchRuns(matterId));
       const readyRuns = nextRuns.filter((run) => run.status === "ready");
       const loaded = await Promise.all(
-        readyRuns.map(async (run) => [run.id, await fetchResearchResults(run.id).catch(() => resultsByRun[run.id] ?? [])] as const)
+        readyRuns.map(
+          async (run) =>
+            [run.id, await fetchResearchResults(run.id).catch(() => resultsByRunRef.current[run.id] ?? [])] as const
+        )
       );
       setRuns(nextRuns);
       setResultsByRun((current) => ({ ...current, ...Object.fromEntries(loaded) }));
@@ -36,7 +44,7 @@ export function useResearchWorkspace({ initialResultsByRun, initialRuns, matterI
     } catch {
       setError("Die Akte konnte nicht aktualisiert werden. Bitte pruefen Sie die Verbindung zur API.");
     }
-  }, [matterId, resultsByRun]);
+  }, [matterId]);
 
   useEffect(() => {
     if (!hasPendingRun) {
@@ -55,8 +63,10 @@ export function useResearchWorkspace({ initialResultsByRun, initialRuns, matterI
     try {
       const run = await startResearchRun(matterId, payload);
       setRuns((current) => sortRuns([...current, run]));
+      return run;
     } catch {
       setError("Der Deep-Research-Lauf konnte nicht gestartet werden.");
+      return null;
     } finally {
       setIsSubmitting(false);
     }

@@ -44,12 +44,6 @@ export async function createMatter(input: { title: string; description?: string 
   });
 }
 
-export async function createSampleMatter() {
-  return request<Matter>("/v1/matters/sample", {
-    method: "POST"
-  });
-}
-
 export async function fetchMatter(matterId: string) {
   return request<Matter>(`/v1/matters/${matterId}`);
 }

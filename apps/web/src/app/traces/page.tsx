@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default async function MatterPage() {
+export default function TracesPage() {
   redirect("/");
 }
