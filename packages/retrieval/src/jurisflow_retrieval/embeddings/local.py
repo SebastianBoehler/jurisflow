@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from functools import lru_cache
+from math import sqrt
 from threading import Lock
 
 from jurisflow_retrieval.embeddings.base import EmbeddingProvider
@@ -10,6 +11,13 @@ from jurisflow_shared import get_settings
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.split())
+
+
+def _normalize_vector(values: list[float]) -> list[float]:
+    magnitude = sqrt(sum(value * value for value in values))
+    if magnitude <= 0:
+        return values
+    return [value / magnitude for value in values]
 
 
 class LocalTextEmbeddingProvider(EmbeddingProvider):
@@ -30,7 +38,7 @@ class LocalTextEmbeddingProvider(EmbeddingProvider):
 
     @property
     def backend(self) -> str:
-        return "sentence_transformers"
+        return "fastembed"
 
     @property
     def model_name(self) -> str:
@@ -60,31 +68,26 @@ class LocalTextEmbeddingProvider(EmbeddingProvider):
 
     def _encode_uncached(self, texts: list[str]) -> list[list[float]]:
         model = self._load_model()
-        vectors = model.encode(
-            texts,
-            batch_size=self._batch_size,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+        vectors = list(model.embed(texts, batch_size=self._batch_size))
         if self._dimension is None and len(vectors):
             self._dimension = int(len(vectors[0]))
-        return [vector.tolist() for vector in vectors]
+        return [_normalize_vector(vector.astype("float32").tolist()) for vector in vectors]
 
     def _load_model(self):
         if self._model is not None:
             return self._model
         try:
-            from sentence_transformers import SentenceTransformer
+            from fastembed import TextEmbedding
         except ModuleNotFoundError as exc:
             raise RuntimeError(
-                "sentence-transformers is required for local embeddings. "
+                "fastembed is required for local embeddings. "
                 "Install the worker dependencies before running ingestion or vector retrieval."
             ) from exc
-        self._model = SentenceTransformer(self._model_name, device="cpu")
-        dimension = self._model.get_sentence_embedding_dimension()
-        if dimension is not None:
-            self._dimension = int(dimension)
+        self._model = TextEmbedding(
+            model_name=self._model_name,
+            lazy_load=False,
+            cuda=False,
+        )
         return self._model
 
 

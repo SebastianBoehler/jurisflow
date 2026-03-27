@@ -5,12 +5,12 @@ description = "Background worker for Jurisflow."
 requires-python = ">=3.11"
 dependencies = [
   "arq>=0.27,<1.0",
+  "fastembed>=0.7,<0.8",
   "jurisflow-agents",
   "jurisflow-db",
   "jurisflow-parsers",
   "jurisflow-retrieval",
   "jurisflow-shared",
-  "sentence-transformers>=3.4,<4.0",
 ]
 
 [build-system]
