@@ -10,6 +10,7 @@ dependencies = [
   "jurisflow-parsers",
   "jurisflow-retrieval",
   "jurisflow-shared",
+  "sentence-transformers>=3.4,<4.0",
 ]
 
 [build-system]
@@ -18,4 +19,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

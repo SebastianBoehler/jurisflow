@@ -55,7 +55,7 @@ class DocumentChunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     keywords: Mapped[str | None] = mapped_column(Text)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -71,4 +71,3 @@ class DocumentExtraction(Base):
     statute_references: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-

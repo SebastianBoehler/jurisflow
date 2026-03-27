@@ -14,16 +14,19 @@ from jurisflow_shared.schemas import (
     ResearchTraceStepRead,
 )
 from jurisflow_shared.types import (
+    AuthorityLevel,
     DeadlineKind,
     DocumentKind,
     DocumentProcessingStatus,
     DraftKind,
     MatterStatus,
+    ModalityType,
     ResearchSource,
     UserRole,
 )
 
 __all__ = [
+    "AuthorityLevel",
     "ConversationTurn",
     "DeadlineKind",
     "DeadlineRead",
@@ -36,6 +39,7 @@ __all__ = [
     "MatterCreate",
     "MatterRead",
     "MatterStatus",
+    "ModalityType",
     "ResearchArtifactRead",
     "ResearchRequest",
     "ResearchResultRead",

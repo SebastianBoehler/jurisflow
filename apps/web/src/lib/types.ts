@@ -42,10 +42,16 @@ export type ResearchResult = {
   id: string;
   research_run_id: string;
   source: string;
+  source_id: string | null;
   title: string;
   citation: string | null;
+  citations: string[];
   excerpt: string;
   relevance_score: number;
+  authority: string | null;
+  modality: string;
+  document_id: string | null;
+  chunk_id: string | null;
   url: string | null;
 };
 

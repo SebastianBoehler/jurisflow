@@ -38,6 +38,19 @@ class ResearchSource(StrEnum):
     GENERAL_WEB = "general_web"
 
 
+class AuthorityLevel(StrEnum):
+    PRIMARY = "primary"
+    CASELAW = "caselaw"
+    SECONDARY = "secondary"
+    FACTUAL = "factual"
+
+
+class ModalityType(StrEnum):
+    TEXT = "text"
+    IMAGE = "image"
+    AUDIO = "audio"
+
+
 class DraftKind(StrEnum):
     LEGAL_MEMO = "legal_memo"
     PLEADING_OUTLINE = "pleading_outline"

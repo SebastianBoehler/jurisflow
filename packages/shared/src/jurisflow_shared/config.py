@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     federal_law_api_base: str = "https://api.rechtsinformationen.bund.de"
     eurlex_api_base: str = "https://eur-lex.europa.eu"
     firecrawl_api_key: str | None = None
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_batch_size: int = 16
+    embedding_cache_size: int = 2_048
     default_tenant_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         validation_alias=AliasChoices("DEFAULT_TENANT_ID", "default_tenant_id"),

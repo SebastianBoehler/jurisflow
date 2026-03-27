@@ -1,4 +1,5 @@
 from jurisflow_retrieval.types import RetrievalHit
+from jurisflow_shared import AuthorityLevel
 
 
 def merge_results(*collections: list[RetrievalHit], limit: int = 10) -> list[RetrievalHit]:
@@ -7,8 +8,8 @@ def merge_results(*collections: list[RetrievalHit], limit: int = 10) -> list[Ret
         for hit in collection:
             key = (
                 hit.source.value,
-                (hit.url or "").strip(),
-                f"{hit.title}|{hit.citation or ''}".strip().lower(),
+                str(hit.chunk_id or hit.source_id or hit.url or "").strip(),
+                f"{hit.title}|{hit.citation or ''}|{hit.document_id or ''}".strip().lower(),
             )
             existing = deduped.get(key)
             if existing is None or hit.relevance_score > existing.relevance_score:
@@ -19,4 +20,10 @@ def merge_results(*collections: list[RetrievalHit], limit: int = 10) -> list[Ret
 
 def _ranking_key(hit: RetrievalHit) -> tuple[float, int]:
     citation_bonus = 1 if hit.citation else 0
-    return hit.relevance_score, citation_bonus
+    authority_bonus = {
+        AuthorityLevel.PRIMARY: 3,
+        AuthorityLevel.CASELAW: 2,
+        AuthorityLevel.FACTUAL: 1,
+        AuthorityLevel.SECONDARY: 0,
+    }.get(hit.authority or AuthorityLevel.SECONDARY, 0)
+    return hit.relevance_score, authority_bonus + citation_bonus

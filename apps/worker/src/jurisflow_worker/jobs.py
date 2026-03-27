@@ -10,27 +10,13 @@ from jurisflow_agents.research_types import ResearchWorkflowInput
 from jurisflow_db.models import Deadline, Document, DocumentChunk, DocumentExtraction, Draft, ResearchResult, ResearchRun, StoredFile
 from jurisflow_db.session import get_session_factory
 from jurisflow_parsers import parse_document
-from jurisflow_retrieval import extract_statute_references
+from jurisflow_retrieval import extract_statute_references, ingest_text_document, normalize_text
+from jurisflow_retrieval.embeddings import get_local_embedding_provider
 from jurisflow_shared import DeadlineKind, ResearchRequest
 
 
 def _session():
     return get_session_factory()()
-
-
-def _chunk_text(text: str, size: int = 800) -> list[str]:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    chunks: list[str] = []
-    current = ""
-    for line in lines:
-        if len(current) + len(line) + 1 > size and current:
-            chunks.append(current.strip())
-            current = line
-        else:
-            current = f"{current}\n{line}".strip()
-    if current:
-        chunks.append(current)
-    return chunks or [text[:size]]
 
 
 def _detect_deadlines(text: str) -> list[dict]:
@@ -65,6 +51,8 @@ async def process_document(_: dict, document_id: str, tenant_id: str) -> None:
 
         stored_file = session.get(StoredFile, document.stored_file_id)
         parsed = parse_document(Path(stored_file.storage_path), stored_file.mime_type)
+        normalized_text = normalize_text(parsed.text)
+        prepared_chunks = ingest_text_document(normalized_text, provider=get_local_embedding_provider()) if normalized_text else []
 
         session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document.id))
         extraction = session.scalar(select(DocumentExtraction).where(DocumentExtraction.document_id == document.id))
@@ -72,22 +60,22 @@ async def process_document(_: dict, document_id: str, tenant_id: str) -> None:
             extraction = DocumentExtraction(tenant_id=document.tenant_id, document_id=document.id)
             session.add(extraction)
 
-        summary = parsed.text[:400] if parsed.text else "No text extracted."
+        summary = normalized_text[:400] if normalized_text else "No text extracted."
         extraction.summary = summary
-        extraction.parties = _extract_parties(parsed.text)
-        extraction.deadlines = _detect_deadlines(parsed.text)
+        extraction.parties = _extract_parties(normalized_text)
+        extraction.deadlines = _detect_deadlines(normalized_text)
         extraction.key_dates = [{"label": "imported_on", "value": str(date.today())}]
-        extraction.statute_references = extract_statute_references(parsed.text)
+        extraction.statute_references = extract_statute_references(normalized_text)
 
-        for idx, chunk in enumerate(_chunk_text(parsed.text)):
+        for prepared in prepared_chunks:
             session.add(
                 DocumentChunk(
                     tenant_id=document.tenant_id,
                     document_id=document.id,
-                    chunk_index=idx,
-                    content=chunk,
-                    keywords=" ".join(extract_statute_references(chunk)) or None,
-                    embedding=None,
+                    chunk_index=prepared.chunk_index,
+                    content=prepared.text,
+                    keywords=" ".join(prepared.keywords) or None,
+                    embedding=prepared.embedding,
                 )
             )
 
@@ -110,6 +98,14 @@ async def process_document(_: dict, document_id: str, tenant_id: str) -> None:
         document.summary = summary
         document.classification = "legal_document"
         session.commit()
+    except Exception as exc:
+        session.rollback()
+        document = session.get(Document, UUID(document_id))
+        if document is not None and str(document.tenant_id) == tenant_id:
+            document.processing_status = "failed"
+            document.summary = f"Dokumentenverarbeitung fehlgeschlagen: {str(exc)[:300]}"
+            session.commit()
+        raise
     finally:
         session.close()
 
@@ -146,10 +142,16 @@ async def run_research(_: dict, research_run_id: str, tenant_id: str, payload_js
                     ResearchResult(
                         research_run_id=run.id,
                         source=hit.source.value,
+                        source_id=hit.source_id,
                         title=hit.title,
                         citation=hit.citation,
+                        citations=hit.citations,
                         excerpt=hit.excerpt,
                         relevance_score=hit.relevance_score,
+                        authority=hit.authority.value if hit.authority else None,
+                        modality=hit.modality.value,
+                        document_id=hit.document_id,
+                        chunk_id=hit.chunk_id,
                         url=hit.url,
                     )
                 )

@@ -5,11 +5,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from jurisflow_shared.types import (
+    AuthorityLevel,
     DeadlineKind,
     DocumentKind,
     DocumentProcessingStatus,
     DraftKind,
     MatterStatus,
+    ModalityType,
     ResearchSource,
 )
 
@@ -106,10 +108,16 @@ class ResearchResultRead(ORMBase):
     id: UUID
     research_run_id: UUID
     source: ResearchSource
+    source_id: str | None = None
     title: str
     citation: str | None
+    citations: list[str] = Field(default_factory=list)
     excerpt: str
     relevance_score: float
+    authority: AuthorityLevel | None = None
+    modality: ModalityType = ModalityType.TEXT
+    document_id: UUID | None = None
+    chunk_id: UUID | None = None
     url: str | None
 
 

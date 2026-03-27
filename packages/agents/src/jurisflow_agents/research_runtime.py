@@ -9,13 +9,12 @@ from google.adk.agents import BaseAgent, LoopAgent, ParallelAgent, SequentialAge
 from jurisflow_agents.llm import StructuredLLMClient
 from jurisflow_agents.research_observability import create_artifact_service, seed_trace
 from jurisflow_agents.research_pipeline import build_research_pipeline
+from jurisflow_agents.research_search import run_internal_docs_search, run_source_search
 from jurisflow_agents.research_stages import (
     run_gap_analysis,
-    run_internal_docs_search,
     run_reranker,
     run_reconnaissance,
     run_router,
-    run_source_search,
     run_synthesis,
 )
 from jurisflow_agents.research_types import ResearchWorkflowInput, ResearchWorkflowState
