@@ -1,13 +1,15 @@
+import json
 from functools import lru_cache
 from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from jurisflow_agents.chat_agent import run_chat
+from jurisflow_agents.chat_agent import run_chat, stream_chat
 from jurisflow_api.deps import get_actor_id, get_db_session, get_tenant_id
 from jurisflow_api.queue import enqueue_job
 from jurisflow_api.services import research as research_service
@@ -109,6 +111,31 @@ async def quick_chat(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)[:400]) from exc
     return ChatReply(answer=answer)
+
+
+@router.post("/v1/matters/{matter_id}/chat/stream")
+async def stream_chat_endpoint(
+    matter_id: UUID,
+    payload: ChatRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+) -> StreamingResponse:
+    """SSE stream of chat agent events (text deltas, tool calls, tool results)."""
+    async def event_gen():
+        try:
+            async for event in stream_chat(
+                payload.query,
+                [{"role": t.role, "content": t.content} for t in payload.history],
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)[:200]}, ensure_ascii=False)}\n\n"
+            yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/v1/matters/{matter_id}/research", response_model=list[ResearchRunRead])

@@ -70,6 +70,13 @@ export type ResearchArtifact = {
   metadata: Record<string, string | number | boolean | string[]>;
 };
 
+export type ChatMessage = {
+  id: string;
+  query: string;
+  answer: string | null;
+  created_at: string;
+};
+
 export type ResearchRequest = {
   query: string;
   focus?: string | null;

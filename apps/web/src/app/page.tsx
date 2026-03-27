@@ -1,7 +1,7 @@
-import { EphemeralChatPage } from "@/components/chat/ephemeral-chat-page";
+import { Thread } from "@/components/chat/thread";
 
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <EphemeralChatPage />;
+  return <Thread />;
 }

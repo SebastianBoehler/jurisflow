@@ -1,7 +1,7 @@
 from jurisflow_agents.research_llm_types import ResearchGapAnalysis, ResearchPlan
 from jurisflow_agents.research_reconnaissance import derive_reconnaissance_hints
 from jurisflow_agents.research_types import ResearchWorkflowState
-from jurisflow_retrieval import extract_statute_references
+from jurisflow_retrieval import extract_legal_references, extract_statute_references
 from jurisflow_shared import ResearchSource
 
 SOURCE_LABELS = {
@@ -18,35 +18,10 @@ def _reconnaissance_hints(state: ResearchWorkflowState) -> str:
     return " ".join(derive_reconnaissance_hints(state.reconnaissance_hits)).strip()
 
 
-def fallback_plan(state: ResearchWorkflowState) -> ResearchPlan:
-    base_query = state.payload.request.query.strip()
-    focus = (state.payload.request.focus or "").strip()
-    statutes = extract_statute_references(f"{base_query} {focus}".strip())
-    reconnaissance_hints = _reconnaissance_hints(state)
-    tasks = []
-    for source in state.enabled_sources:
-        tasks.append(
-            {
-                "source": source,
-                "query": build_source_query(source, base_query, focus, statutes, reconnaissance_hints),
-                "rationale": f"Deckung fuer {SOURCE_LABELS[source]}.",
-                "priority": 1,
-            }
-        )
-    return ResearchPlan.model_validate(
-        {
-            "objective": state.payload.request.query,
-            "search_strategy": "Quelle fuer Quelle parallel recherchieren und anschliessend konsolidieren.",
-            "key_terms": statutes,
-            "tasks": tasks,
-        }
-    )
-
-
 def fallback_gap_analysis(state: ResearchWorkflowState) -> ResearchGapAnalysis:
     if len(state.merged_results) >= max(3, state.payload.request.max_results // 2):
         return ResearchGapAnalysis(sufficient_coverage=True)
-    statutes = extract_statute_references(f"{state.payload.request.query} {state.payload.request.focus or ''}".strip())
+    statutes = extract_legal_references(f"{state.payload.request.query} {state.payload.request.focus or ''}".strip())
     reconnaissance_hints = _reconnaissance_hints(state)
     follow_up_tasks = []
     for source in state.enabled_sources:
@@ -90,11 +65,31 @@ def tokenize(text: str) -> set[str]:
 
 
 def score_internal_chunk(content: str, keywords: str, query_tokens: set[str]) -> float:
-    overlap = query_tokens & (tokenize(content) | tokenize(keywords))
+    """Score an internal document chunk against the query token set.
+
+    Scoring factors:
+    - **Coverage**: fraction of distinct query terms found in the chunk (primary signal).
+    - **Density**: penalty for very long chunks that match trivially due to size.
+    - **Statute bonus**: chunks that contain statute/article references are more legally dense.
+    """
+    if not query_tokens:
+        return 0.0
+    content_tokens = tokenize(content)
+    overlap = query_tokens & (content_tokens | tokenize(keywords))
     if not overlap:
         return 0.0
-    statute_bonus = 0.22 if extract_statute_references(content) else 0.0
-    return min(0.95, 0.24 + len(overlap) * 0.1 + statute_bonus)
+
+    # Fraction of query terms satisfied (0–1)
+    coverage = len(overlap) / len(query_tokens)
+
+    # Penalise very long chunks: a 600-token chunk matching 3 terms is less focused
+    # than a 30-token chunk matching the same 3 terms.
+    chunk_size = max(1, len(content_tokens))
+    density_factor = max(0.0, 1.0 - chunk_size / 600)
+
+    statute_bonus = 0.22 if extract_legal_references(content) else 0.0
+    base = coverage * (0.55 + 0.2 * density_factor)
+    return min(0.95, base + statute_bonus)
 
 
 def build_source_query(source: ResearchSource, query: str, focus: str, statutes: list[str], reconnaissance_hints: str = "") -> str:

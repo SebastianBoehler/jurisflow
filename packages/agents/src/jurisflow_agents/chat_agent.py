@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from typing import AsyncGenerator
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -132,3 +133,65 @@ async def run_chat(query: str, history: list[dict]) -> str:
             )
 
     return final_text or "Keine Antwort erhalten."
+
+
+async def stream_chat(
+    query: str,
+    history: list[dict],
+) -> AsyncGenerator[dict, None]:
+    """Async generator yielding structured events from the ADK chat agent.
+
+    Event shapes:
+      {"type": "text_delta", "text": str}
+      {"type": "tool_call", "id": str, "name": str, "args": dict}
+      {"type": "tool_result", "id": str, "name": str, "output": str}
+      {"type": "done"}
+      {"type": "error", "message": str}
+    """
+    _, api_key = _resolve_model()
+    if not api_key:
+        yield {"type": "text_delta", "text": "Kein KI-Modell konfiguriert. Bitte OPENROUTER_API_KEY setzen."}
+        yield {"type": "done"}
+        return
+
+    agent = _build_agent(history)
+    session_service = InMemorySessionService()
+    runner = Runner(agent=agent, app_name="jurisflow-chat", session_service=session_service)
+    session = await session_service.create_session(app_name="jurisflow-chat", user_id="ephemeral")
+    user_msg = Content(role="user", parts=[Part(text=query)])
+
+    try:
+        async for event in runner.run_async(
+            user_id=session.user_id,
+            session_id=session.id,
+            new_message=user_msg,
+        ):
+            if not event.content or not event.content.parts:
+                continue
+            for part in event.content.parts:
+                if part.text:
+                    yield {"type": "text_delta", "text": part.text}
+                elif part.function_call:
+                    fc = part.function_call
+                    call_id = getattr(fc, "id", None) or f"call_{fc.name}"
+                    yield {
+                        "type": "tool_call",
+                        "id": call_id,
+                        "name": fc.name,
+                        "args": dict(fc.args or {}),
+                    }
+                elif part.function_response:
+                    fr = part.function_response
+                    resp = fr.response or {}
+                    output = resp.get("output", str(resp)) if isinstance(resp, dict) else str(resp)
+                    result_id = getattr(fr, "id", None) or f"result_{fr.name}"
+                    yield {
+                        "type": "tool_result",
+                        "id": result_id,
+                        "name": fr.name,
+                        "output": str(output)[:2000],
+                    }
+    except Exception as exc:
+        yield {"type": "error", "message": str(exc)[:300]}
+    finally:
+        yield {"type": "done"}

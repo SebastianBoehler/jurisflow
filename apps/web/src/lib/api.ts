@@ -1,13 +1,43 @@
-import { Deadline, Document, Draft, EvidenceItem, Matter, ResearchRequest, ResearchResult, ResearchRun } from "@/lib/types";
+import { ChatMessage, Deadline, Document, Draft, EvidenceItem, Matter, ResearchRequest, ResearchResult, ResearchRun } from "@/lib/types";
 
 const SERVER_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? "00000000-0000-0000-0000-000000000001";
+
+type ApiErrorPayload = {
+  detail?: string;
+};
 
 function getApiBase() {
   if (typeof window !== "undefined") {
     return "/_jurisflow";
   }
   return SERVER_API_BASE;
+}
+
+async function buildRequestError(response: Response, path: string) {
+  let detail = "";
+
+  try {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const payload = (await response.json()) as ApiErrorPayload;
+      detail = payload.detail?.trim() ?? "";
+    } else {
+      detail = (await response.text()).trim();
+    }
+  } catch {
+    detail = "";
+  }
+
+  if (detail.includes("You exceeded your current quota")) {
+    return new Error("Der Chat ist derzeit nicht verfuegbar, weil fuer den konfigurierten OpenAI-Zugang kein Kontingent mehr verfuegbar ist.");
+  }
+
+  if (detail) {
+    return new Error(detail);
+  }
+
+  return new Error(`Request failed for ${path} (${response.status})`);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -28,7 +58,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(`Request failed for ${path}`);
+    throw await buildRequestError(response, path);
   }
   return response.json() as Promise<T>;
 }
@@ -77,4 +107,21 @@ export async function fetchDrafts(matterId: string) {
 
 export async function fetchEvidence(matterId: string) {
   return request<EvidenceItem[]>(`/v1/matters/${matterId}/evidence`);
+}
+
+export async function sendChatMessage(
+  matterId: string,
+  query: string,
+  history: Array<{ role: string; content: string }> = []
+): Promise<ChatMessage> {
+  const reply = await request<{ answer: string }>(`/v1/matters/${matterId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ query, history })
+  });
+  return {
+    id: crypto.randomUUID(),
+    query,
+    answer: reply.answer,
+    created_at: new Date().toISOString()
+  };
 }

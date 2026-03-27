@@ -6,7 +6,7 @@ from lxml import html
 from jurisflow_retrieval.citations import extract_statute_references
 from jurisflow_retrieval.providers.base import ResearchProvider
 from jurisflow_retrieval.types import RetrievalHit, SearchRequest
-from jurisflow_retrieval.utils import clean_text
+from jurisflow_retrieval.utils import clean_text, decode_bytes
 from jurisflow_shared import ResearchSource
 
 
@@ -40,7 +40,7 @@ class FederalLawProvider(ResearchProvider):
                     response.raise_for_status()
                 except Exception:
                     continue
-                title, excerpt = _parse_statute_page(response.content.decode("latin-1", errors="ignore"))
+                title, excerpt = _parse_statute_page(decode_bytes(response.content))
                 if not title or not excerpt:
                     continue
                 hits.append(
@@ -67,7 +67,7 @@ class FederalLawProvider(ResearchProvider):
         except Exception:
             return []
 
-        document = html.fromstring(response.content.decode("latin-1", errors="ignore"))
+        document = html.fromstring(decode_bytes(response.content))
         results: list[RetrievalHit] = []
         for index, anchor in enumerate(document.xpath("//dl/dt/strong/a")[: request.max_results], start=1):
             href = anchor.get("href")

@@ -41,8 +41,9 @@ def _celex_citation(celex: str, title: str) -> str:
     nickname = _WELL_KNOWN.get(celex)
     if nickname:
         return f"CELEX:{celex} ({nickname})"
-    # Derive type label from 5th char of CELEX (e.g. 32016R0679 → R → Verordnung)
-    type_char = celex[4] if len(celex) > 4 else ""
+    # CELEX format: sector(1) + year(4) + type(1) + number — type char is at index 5
+    # e.g. 32016R0679: sector=3, year=2016, type=R, number=0679
+    type_char = celex[5] if len(celex) > 5 else ""
     type_label = _CELEX_TYPE_LABELS.get(type_char, "EU-Rechtsakt")
     return f"CELEX:{celex} – {type_label}"
 
