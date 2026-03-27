@@ -21,7 +21,7 @@ PRACTICAL_ADMIN_TERMS = {
 
 
 def fallback_route_plan(state: ResearchWorkflowState) -> ResearchRoutePlan:
-    query = state.payload.request.query.strip()
+    query = state.contextual_query.strip() or state.payload.request.query.strip()
     focus = (state.payload.request.focus or "").strip()
     text = " ".join(part for part in [query, focus] if part)
     statutes = extract_statute_references(text)

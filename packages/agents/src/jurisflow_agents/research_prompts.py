@@ -27,16 +27,20 @@ def planner_user_prompt(
     focus: str | None,
     sources: list[ResearchSource],
     max_results: int,
+    conversation_transcript: str | None = None,
     reconnaissance_summary: str | None = None,
 ) -> str:
     enabled_sources = "\n".join(f"- {source.value}: {SOURCE_DESCRIPTIONS[source]}" for source in sources)
     focus_text = focus or "Kein gesonderter Fokus."
     reconnaissance_text = reconnaissance_summary or "Keine vorgelagerte Web-Recherche vorhanden."
+    conversation_text = conversation_transcript or "Kein bisheriger Gespraechsverlauf vorhanden."
     return (
         "Erstelle einen Deep-Research-Plan fuer eine juristische Recherche.\n\n"
         f"Anfrage: {query}\n"
         f"Fokus: {focus_text}\n"
         f"Maximale Gesamttreffer: {max_results}\n"
+        "Bisheriger Gespraechsverlauf:\n"
+        f"{conversation_text}\n\n"
         "Web-Recherche zur Orientierung:\n"
         f"{reconnaissance_text}\n\n"
         "Verfuegbare Quellen:\n"
@@ -67,6 +71,7 @@ def gap_user_prompt(state: ResearchWorkflowState) -> str:
     return (
         "Pruefe, ob nach der ersten Suchrunde weitere Recherche noetig ist.\n\n"
         f"Ausgangsanfrage: {state.payload.request.query}\n"
+        f"Kontext aus dem bisherigen Gespraech:\n{state.conversation_transcript or 'Kein bisheriger Gespraechsverlauf'}\n\n"
         f"Fokus: {state.payload.request.focus or 'Kein gesonderter Fokus'}\n"
         f"Zwischensummary: {summarize_hits_for_llm(state)}\n\n"
         "Anforderungen:\n"
@@ -92,6 +97,7 @@ def synthesis_user_prompt(state: ResearchWorkflowState) -> str:
     return (
         "Fasse die Recherche fuer eine deutsche Kanzlei zusammen.\n\n"
         f"Anfrage: {state.payload.request.query}\n"
+        f"Gespraechsverlauf:\n{state.conversation_transcript or 'Kein bisheriger Gespraechsverlauf'}\n\n"
         f"Fokus: {state.payload.request.focus or 'Kein gesonderter Fokus'}\n\n"
         "QUELLENINDEX – verwende diese Referenzen inline im Text:\n"
         f"{source_index}\n\n"

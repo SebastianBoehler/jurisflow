@@ -11,6 +11,7 @@ import {
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
 import { getToolResultText } from "@/components/chat/tool-result";
+import type { ConversationTurn } from "@/lib/types";
 
 const API_BASE = "/_jurisflow";
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? "00000000-0000-0000-0000-000000000001";
@@ -42,6 +43,17 @@ export type ChatMode = {
   sources: string[];
 };
 
+function buildConversationHistory(messages: Parameters<ChatModelAdapter["run"]>[0]["messages"]): ConversationTurn[] {
+  return messages.slice(0, -1).flatMap((msg) => {
+    const textPart = msg.content.find(
+      (part): part is Extract<(typeof msg.content)[number], { type: "text"; text: string }> =>
+        part.type === "text" && "text" in part && typeof part.text === "string",
+    );
+    if (!textPart) return [];
+    return [{ role: msg.role === "assistant" ? "assistant" : "user", content: textPart.text }];
+  });
+}
+
 export function useChatRuntime(mode: ChatMode) {
   const matterIdRef = useRef<string | null>(null);
   const modeRef = useRef(mode);
@@ -68,14 +80,10 @@ export function useChatRuntime(mode: ChatMode) {
       const lastMsg = messages[messages.length - 1];
       const query = lastMsg?.content.find((p) => p.type === "text")?.text ?? "";
 
-      const history = messages.slice(0, -1).flatMap((msg) => {
-        const textPart = msg.content.find((p) => p.type === "text");
-        if (!textPart || textPart.type !== "text") return [];
-        return [{ role: msg.role === "assistant" ? "assistant" : "user", content: textPart.text }];
-      });
+      const history = buildConversationHistory(messages);
 
       if (deepResearch) {
-        yield* runResearch(matterId, query, sources.length ? sources : DEFAULT_SOURCES, abortSignal);
+        yield* runResearch(matterId, query, history, sources.length ? sources : DEFAULT_SOURCES, abortSignal);
       } else {
         yield* runChatStream(matterId, query, history, abortSignal);
       }
@@ -248,6 +256,7 @@ function buildResearchContent(run: ResearchRun, results: ResearchResultSource[] 
 async function* runResearch(
   matterId: string,
   query: string,
+  history: ConversationTurn[],
   sources: string[],
   abortSignal: AbortSignal,
 ): AsyncGenerator<ChatModelRunResult, void> {
@@ -258,7 +267,7 @@ async function* runResearch(
 
   const run = await apiFetch<ResearchRun>(`/v1/matters/${matterId}/research`, {
     method: "POST",
-    body: JSON.stringify({ query, sources, deep_research: true, max_results: 8 }),
+    body: JSON.stringify({ query, history, sources, deep_research: true, max_results: 8 }),
   });
 
   yield { content: buildResearchContent(run), status: RUNNING_STATUS };

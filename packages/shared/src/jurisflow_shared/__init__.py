@@ -1,5 +1,6 @@
 from jurisflow_shared.config import Settings, get_redis_settings, get_settings
 from jurisflow_shared.schemas import (
+    ConversationTurn,
     DeadlineRead,
     DraftCreate,
     DraftRead,
@@ -23,6 +24,7 @@ from jurisflow_shared.types import (
 )
 
 __all__ = [
+    "ConversationTurn",
     "DeadlineKind",
     "DeadlineRead",
     "DocumentKind",

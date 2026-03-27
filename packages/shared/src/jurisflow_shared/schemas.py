@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -65,6 +66,11 @@ class EvidenceItemRead(ORMBase):
     created_at: datetime
 
 
+class ConversationTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=12_000)
+
+
 class ResearchRequest(BaseModel):
     query: str = Field(min_length=3, max_length=2_000)
     focus: str | None = Field(default=None, max_length=1_000)
@@ -72,6 +78,7 @@ class ResearchRequest(BaseModel):
     filters: dict[str, str | bool | list[str]] = Field(default_factory=dict)
     max_results: int = Field(default=8, ge=1, le=20)
     deep_research: bool = True
+    history: list[ConversationTurn] = Field(default_factory=list)
 
 
 class ResearchTraceStepRead(BaseModel):

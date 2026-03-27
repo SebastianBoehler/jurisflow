@@ -111,7 +111,8 @@ def search_agent_name(source: ResearchSource) -> str:
 # ---------------------------------------------------------------------------
 
 def run_reconnaissance(state: ResearchWorkflowState) -> None:
-    if not should_run_reconnaissance(state.payload.request.query, state.payload.request.focus, state.requested_sources):
+    query = state.contextual_query or state.payload.request.query
+    if not should_run_reconnaissance(query, state.payload.request.focus, state.requested_sources):
         update_stage(
             state,
             key="recon",
@@ -125,7 +126,7 @@ def run_reconnaissance(state: ResearchWorkflowState) -> None:
     try:
         hits = provider.search_reconnaissance(
             build_reconnaissance_request(
-                state.payload.request.query,
+                query,
                 state.payload.request.focus,
                 state.payload.request.max_results,
             )
@@ -156,17 +157,19 @@ def run_reconnaissance(state: ResearchWorkflowState) -> None:
 
 
 def run_router(state: ResearchWorkflowState, llm: StructuredLLMClient, artifact_service) -> None:
-    state.normalized_query = " ".join(state.payload.request.query.split())
+    contextual_query = state.contextual_query or state.payload.request.query
+    state.normalized_query = " ".join(contextual_query.split())
     route_plan = fallback_route_plan(state)
     if llm.is_configured:
         try:
             route_plan = llm.generate_json(
                 system_prompt=planner_system_prompt(),
                 user_prompt=planner_user_prompt(
-                    state.payload.request.query,
+                    contextual_query,
                     state.payload.request.focus,
                     state.enabled_sources,
                     state.payload.request.max_results,
+                    state.conversation_transcript or None,
                     state.reconnaissance_summary or None,
                 ),
                 response_model=planner_response_model(),

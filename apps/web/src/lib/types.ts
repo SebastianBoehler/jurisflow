@@ -84,6 +84,12 @@ export type ResearchRequest = {
   filters?: Record<string, string | boolean | string[]>;
   max_results?: number;
   deep_research?: boolean;
+  history?: ConversationTurn[];
+};
+
+export type ConversationTurn = {
+  role: "user" | "assistant";
+  content: string;
 };
 
 export type Draft = {
