@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react";
 
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { ChatMessage as ChatMessageType } from "@/components/chat/chat-types";
-import { Citation } from "@/components/tool-ui/citation";
 import { cn } from "@/lib/utils";
 
 type ChatMessageProps = {
@@ -23,6 +22,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   }
 
   const isRunning = message.status === "queued" || message.status === "processing";
+  const isResearch = message.mode === "research";
 
   return (
     <div className="flex justify-start">
@@ -30,11 +30,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         {isRunning ? (
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Recherche läuft…</span>
+            <span>{isResearch ? "Recherche läuft…" : "Antwort wird geladen…"}</span>
           </div>
         ) : null}
 
-        {message.trace.length ? (
+        {isResearch && message.trace.length ? (
           <div className="flex flex-wrap gap-2">
             {message.trace.map((step) => (
               <span
@@ -44,7 +44,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   step.status === "failed" && "border-destructive/20 bg-destructive/5 text-destructive",
                   step.status === "skipped" && "border-border bg-muted text-muted-foreground",
                   (step.status === "complete" || step.status === "ready") && "border-border bg-muted text-foreground",
-                  (step.status === "queued" || step.status === "processing") && "border-border bg-background text-muted-foreground"
+                  (step.status === "queued" || step.status === "processing") &&
+                    "border-border bg-background text-muted-foreground"
                 )}
                 title={step.detail ?? undefined}
               >
@@ -58,49 +59,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm leading-7 text-destructive">
             {message.error}
           </div>
-        ) : null}
-
-        {message.content ? (
+        ) : message.content ? (
           <ChatMarkdown content={message.content} />
-        ) : message.summary ? (
-          <p className="text-[15px] leading-7 text-foreground">{message.summary}</p>
         ) : !isRunning ? (
-          <p className="text-[15px] leading-7 text-muted-foreground">
-            Kein Bericht verfügbar. Die Pipeline hat keine belastbare Antwort erzeugt.
-          </p>
-        ) : null}
-
-        {message.results.length ? (
-          <div className="space-y-3 border-t border-border pt-4">
-            <p className="text-sm font-medium text-foreground">Quellen</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {message.results.map((result) => (
-                <Citation
-                  key={result.id}
-                  domain={getDomain(result.url)}
-                  href={result.url ?? "#"}
-                  id={result.id}
-                  snippet={result.excerpt}
-                  title={result.title}
-                  type="document"
-                />
-              ))}
-            </div>
-          </div>
+          <p className="text-[15px] leading-7 text-muted-foreground">Kein Ergebnis verfügbar.</p>
         ) : null}
       </div>
     </div>
   );
-}
-
-function getDomain(url: string | null) {
-  if (!url) {
-    return undefined;
-  }
-
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return undefined;
-  }
 }

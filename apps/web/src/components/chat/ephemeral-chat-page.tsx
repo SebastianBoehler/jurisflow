@@ -1,6 +1,6 @@
 "use client";
 
-import { Scale, Search } from "lucide-react";
+import { Scale } from "lucide-react";
 
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatMessage } from "@/components/chat/chat-message";
@@ -47,7 +47,7 @@ export function EphemeralChatPage() {
                   <button
                     key={prompt}
                     className="rounded-full border border-border bg-card px-4 py-2.5 text-sm text-foreground transition hover:border-foreground/20 hover:bg-muted"
-                    onClick={() => void submit(prompt)}
+                    onClick={() => void submit(prompt, false)}
                     type="button"
                   >
                     {prompt}
@@ -64,10 +64,6 @@ export function EphemeralChatPage() {
           )}
 
           <div className="sticky bottom-0 mt-auto bg-gradient-to-t from-background via-background to-transparent pb-2 pt-6">
-            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Search className="h-4 w-4" />
-              <span>Automatische Auswahl der passenden Quellen und Folgeabfragen.</span>
-            </div>
             <ChatComposer disabled={isSubmitting} onSubmit={submit} />
           </div>
         </section>

@@ -11,6 +11,7 @@ export type ChatMessage =
       role: "assistant";
       content: string;
       error?: string;
+      mode: "chat" | "research";
       results: ResearchResult[];
       runId?: string;
       status: "queued" | "processing" | "ready" | "failed";
