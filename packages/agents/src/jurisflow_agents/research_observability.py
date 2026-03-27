@@ -17,7 +17,8 @@ def create_artifact_service() -> InMemoryArtifactService:
 
 
 def seed_trace(state: ResearchWorkflowState) -> None:
-    update_stage(state, key="planner", label="Rechercheplan erstellen", agent="QueryPlannerAgent", status="pending")
+    update_stage(state, key="recon", label="Web-Recherche zur Orientierung", agent="ReconnaissanceAgent", status="pending")
+    update_stage(state, key="planner", label="Routing und Rechercheplan erstellen", agent="RouterAgent", status="pending")
     for source in state.enabled_sources:
         update_stage(
             state,
@@ -110,9 +111,11 @@ def format_reasoning_digest(state: ResearchWorkflowState) -> str:
 def _search_agent_name(source: ResearchSource) -> str:
     return {
         ResearchSource.FEDERAL_LAW: "FederalLawSearchAgent",
+        ResearchSource.STATE_LAW: "StateLawSearchAgent",
         ResearchSource.CASE_LAW: "CaseLawSearchAgent",
         ResearchSource.EU_LAW: "EuLawSearchAgent",
         ResearchSource.INTERNAL_DOCS: "InternalDocsSearchAgent",
+        ResearchSource.GENERAL_WEB: "GeneralWebSearchAgent",
     }[source]
 
 

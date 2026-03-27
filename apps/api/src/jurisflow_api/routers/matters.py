@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from jurisflow_api.deps import get_actor_id, get_db_session, get_tenant_id
 from jurisflow_api.services import matters as matter_service
-from jurisflow_api.services.sample_matter import create_or_get_sample_matter
 from jurisflow_shared import MatterCreate, MatterRead
 
 router = APIRouter(prefix="/v1/matters", tags=["matters"])
@@ -29,16 +28,6 @@ def list_matters(
 ) -> list[MatterRead]:
     matters = matter_service.list_matters(session, tenant_id)
     return [MatterRead.model_validate(matter) for matter in matters]
-
-
-@router.post("/sample", response_model=MatterRead, status_code=status.HTTP_201_CREATED)
-def create_sample_matter(
-    session: Session = Depends(get_db_session),
-    tenant_id: UUID = Depends(get_tenant_id),
-    actor_id: UUID | None = Depends(get_actor_id),
-) -> MatterRead:
-    matter = create_or_get_sample_matter(session, tenant_id, actor_id)
-    return MatterRead.model_validate(matter)
 
 
 @router.get("/{matter_id}", response_model=MatterRead)

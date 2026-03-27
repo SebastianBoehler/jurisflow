@@ -1,4 +1,3 @@
-from html import unescape
 from urllib.parse import urljoin
 
 import httpx
@@ -6,6 +5,7 @@ from lxml import html
 
 from jurisflow_retrieval.providers.base import ResearchProvider
 from jurisflow_retrieval.types import RetrievalHit, SearchRequest
+from jurisflow_retrieval.utils import clean_text
 from jurisflow_shared import ResearchSource
 
 
@@ -77,5 +77,4 @@ def _extract_case_citation(title: str) -> str | None:
     return f"{parts[0]} | {parts[1]}"
 
 
-def _clean_text(value: str) -> str:
-    return " ".join(unescape(value).split())
+_clean_text = clean_text

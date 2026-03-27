@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://jurisflow:jurisflow@localhost:5432/jurisflow"
     redis_url: str = "redis://localhost:6379/0"
     storage_root: Path = Path("/data/files")
+    enable_structured_llm: bool = False
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-5-mini"
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "openrouter/google/gemini-2.5-flash"
@@ -20,6 +24,7 @@ class Settings(BaseSettings):
     openrouter_app_name: str = "Jurisflow AI"
     federal_law_api_base: str = "https://api.rechtsinformationen.bund.de"
     eurlex_api_base: str = "https://eur-lex.europa.eu"
+    firecrawl_api_key: str | None = None
     default_tenant_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         validation_alias=AliasChoices("DEFAULT_TENANT_ID", "default_tenant_id"),

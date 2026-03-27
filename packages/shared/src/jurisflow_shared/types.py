@@ -31,9 +31,11 @@ class DeadlineKind(StrEnum):
 
 class ResearchSource(StrEnum):
     FEDERAL_LAW = "federal_law"
+    STATE_LAW = "state_law"
     CASE_LAW = "case_law"
     EU_LAW = "eu_law"
     INTERNAL_DOCS = "internal_docs"
+    GENERAL_WEB = "general_web"
 
 
 class DraftKind(StrEnum):
@@ -47,4 +49,3 @@ class UserRole(StrEnum):
     LAWYER = "lawyer"
     PARALEGAL = "paralegal"
     VIEWER = "viewer"
-

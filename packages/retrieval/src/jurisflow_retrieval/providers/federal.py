@@ -1,4 +1,3 @@
-from html import unescape
 from urllib.parse import quote_plus
 
 import httpx
@@ -7,6 +6,7 @@ from lxml import html
 from jurisflow_retrieval.citations import extract_statute_references
 from jurisflow_retrieval.providers.base import ResearchProvider
 from jurisflow_retrieval.types import RetrievalHit, SearchRequest
+from jurisflow_retrieval.utils import clean_text
 from jurisflow_shared import ResearchSource
 
 
@@ -117,5 +117,4 @@ def _extract_citation_from_title(title: str) -> str | None:
     return citation.strip()
 
 
-def _clean_text(value: str) -> str:
-    return " ".join(unescape(value).split())
+_clean_text = clean_text
