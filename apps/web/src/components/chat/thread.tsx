@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Globe, Scale, ArrowUp, Microscope, Plus, Loader2 } from "lucide-react";
 import {
   ThreadPrimitive,
@@ -11,7 +11,13 @@ import { AssistantMessage, UserMessage } from "@/components/chat/chat-messages";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useChatRuntime, type ChatMode } from "@/components/chat/use-chat-runtime";
+import { waitForDocumentProcessing } from "@/components/chat/document-upload";
+import { STARTER_PROMPTS } from "@/components/chat/starter-prompts";
+import {
+  useChatRuntime,
+  type ChatMode,
+  type UploadedDocumentState,
+} from "@/components/chat/use-chat-runtime";
 
 const DEFAULT_MODE: ChatMode = {
   deepResearch: false,
@@ -26,15 +32,23 @@ const ALL_SOURCES = [
   { id: "general_web", label: "Web" },
 ];
 
-const STARTER_PROMPTS = [
-  "Welche Anforderungen stellt § 626 BGB an die Zwei-Wochen-Frist?",
-  "Wie weit muss ein Blitzer vom Ortsschild entfernt stehen?",
-  "Welche Voraussetzungen gelten für eine fristlose Kündigung wegen Zahlungsverzugs?",
-];
-
 // ----------- Composer (inside AssistantRuntimeProvider) -----------
-function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m: ChatMode) => void }) {
+function ChatComposer({
+  mode,
+  onModeChange,
+  onUpload,
+}: {
+  mode: ChatMode;
+  onModeChange: (m: ChatMode) => void;
+  onUpload: (file: File) => Promise<UploadedDocumentState>;
+}) {
   const [value, setValue] = useState("");
+  const [uploadState, setUploadState] = useState<{
+    filename: string;
+    status: "idle" | "uploading" | "ready" | "failed";
+    detail?: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const thread = useThreadRuntime();
   const isRunning = thread.getState().isRunning;
 
@@ -50,6 +64,42 @@ function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m
       ? mode.sources.filter((s) => s !== id)
       : [...mode.sources, id];
     onModeChange({ ...mode, sources: next.length ? next : [id] });
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setUploadState({ filename: file.name, status: "uploading", detail: "Wird hochgeladen…" });
+
+    try {
+      const uploaded = await onUpload(file);
+      const immediateState = {
+        filename: uploaded.title,
+        status: uploaded.processing_status === "ready" ? "ready" : "uploading",
+        detail:
+          uploaded.processing_status === "ready"
+            ? "Dokument ist verfuegbar."
+            : "Dokument wurde hochgeladen und wird verarbeitet.",
+      } as const;
+      setUploadState(immediateState);
+
+      if (uploaded.processing_status !== "ready" && uploaded.processing_status !== "failed") {
+        const processed = await waitForDocumentProcessing(uploaded.id);
+        setUploadState({
+          filename: processed.title,
+          status: processed.processing_status === "ready" ? "ready" : "failed",
+          detail:
+            processed.processing_status === "ready"
+              ? "Dokument ist verfuegbar."
+              : processed.summary ?? "Dokumentenverarbeitung fehlgeschlagen.",
+        });
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Upload fehlgeschlagen.";
+      setUploadState({ filename: file.name, status: "failed", detail });
+    }
   }
 
   return (
@@ -68,13 +118,38 @@ function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m
         />
       </div>
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+        <input
+          ref={fileInputRef}
+          accept=".pdf,.doc,.docx,.txt,.eml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,message/rfc822"
+          className="hidden"
+          onChange={handleFileChange}
+          type="file"
+        />
         <button
           className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-foreground/20 hover:text-foreground"
           type="button"
           aria-label="Anhang hinzufügen"
+          disabled={uploadState?.status === "uploading"}
+          onClick={() => fileInputRef.current?.click()}
         >
-          <Plus className="h-4 w-4" />
+          {uploadState?.status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </button>
+
+        {uploadState ? (
+          <div
+            className={cn(
+              "max-w-[14rem] truncate rounded-full px-3 py-1.5 text-xs",
+              uploadState.status === "failed"
+                ? "bg-red-50 text-red-700"
+                : uploadState.status === "ready"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-muted text-muted-foreground",
+            )}
+            title={uploadState.detail}
+          >
+            {uploadState.filename}
+          </div>
+        ) : null}
 
         <button
           className={cn(
@@ -135,7 +210,7 @@ function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m
 
         <Button
           className="h-9 w-9 rounded-full p-0"
-          disabled={isRunning || !value.trim()}
+          disabled={isRunning || uploadState?.status === "uploading" || !value.trim()}
           onClick={handleSubmit}
           size="icon"
           type="button"
@@ -148,7 +223,7 @@ function ChatComposer({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m
 }
 
 // ----------- Empty state starter prompts -----------
-function EmptyState({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m: ChatMode) => void }) {
+function EmptyState() {
   const thread = useThreadRuntime();
 
   function handlePrompt(prompt: string) {
@@ -187,7 +262,7 @@ function EmptyState({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m: 
 // ----------- Root Thread component -----------
 export function Thread() {
   const [mode, setMode] = useState<ChatMode>(DEFAULT_MODE);
-  const runtime = useChatRuntime(mode);
+  const { runtime, uploadDocument } = useChatRuntime(mode);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -210,7 +285,7 @@ export function Thread() {
         <ThreadPrimitive.Root className="flex flex-1 flex-col">
           <ThreadPrimitive.Viewport className="flex flex-1 flex-col">
             <ThreadPrimitive.If empty>
-              <EmptyState mode={mode} onModeChange={setMode} />
+              <EmptyState />
             </ThreadPrimitive.If>
             <ThreadPrimitive.If empty={false}>
               <div className="flex-1 space-y-6 pb-40 pt-6">
@@ -223,7 +298,7 @@ export function Thread() {
 
           {/* Sticky composer */}
           <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-6 pt-4">
-            <ChatComposer mode={mode} onModeChange={setMode} />
+            <ChatComposer mode={mode} onModeChange={setMode} onUpload={uploadDocument} />
           </div>
         </ThreadPrimitive.Root>
       </div>

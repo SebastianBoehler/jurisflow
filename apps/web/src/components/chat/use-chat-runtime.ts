@@ -5,12 +5,20 @@ import {
   useLocalRuntime,
   type ChatModelAdapter,
   type ChatModelRunResult,
-  type MessageStatus,
   type SourceMessagePart,
   type ThreadAssistantMessagePart,
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
 import { getToolResultText } from "@/components/chat/tool-result";
+import {
+  buildResearchContent,
+  COMPLETE_STATUS,
+  parseWebSearchSources,
+  type ResearchResultSource,
+  type ResearchRunState,
+  RUNNING_STATUS,
+} from "@/components/chat/research-content";
+import { uploadDocument as uploadMatterDocument } from "@/lib/api";
 import type { ConversationTurn } from "@/lib/types";
 
 const API_BASE = "/_jurisflow";
@@ -18,11 +26,8 @@ const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? "00000000-0000-0000-0000-
 const DEFAULT_SOURCES = ["federal_law", "state_law", "case_law", "eu_law", "general_web"];
 const POLL_INTERVAL_MS = 1800;
 const MAX_POLL = 90;
-const RUNNING_STATUS = { type: "running" } as const satisfies MessageStatus;
-const COMPLETE_STATUS = { type: "complete", reason: "stop" } as const satisfies MessageStatus;
 
 type ToolCallPart = ToolCallMessagePart;
-type ResearchResultSource = { id: string; title: string; url: string | null };
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -41,6 +46,13 @@ function sleep(ms: number) {
 export type ChatMode = {
   deepResearch: boolean;
   sources: string[];
+};
+
+export type UploadedDocumentState = {
+  id: string;
+  title: string;
+  processing_status: string;
+  summary: string | null;
 };
 
 function buildConversationHistory(messages: Parameters<ChatModelAdapter["run"]>[0]["messages"]): ConversationTurn[] {
@@ -90,7 +102,17 @@ export function useChatRuntime(mode: ChatMode) {
     },
   };
 
-  return useLocalRuntime(adapter);
+  const runtime = useLocalRuntime(adapter);
+
+  const uploadDocument = useCallback(async (file: File): Promise<UploadedDocumentState> => {
+    const matterId = await ensureMatter();
+    return uploadMatterDocument(matterId, file);
+  }, [ensureMatter]);
+
+  return {
+    runtime,
+    uploadDocument,
+  };
 }
 
 async function* runChatStream(
@@ -156,7 +178,7 @@ async function* runChatStream(
         }
 
         if (event.name === "web_search") {
-          for (const source of parseWebSearchSources(event.output)) {
+          for (const source of parseWebSearchSources(getToolResultText(event.output))) {
             sourceParts.set(source.id, source);
           }
         }
@@ -176,83 +198,6 @@ async function* runChatStream(
   yield finalContent.length > 0 ? { content: finalContent, status: COMPLETE_STATUS } : { status: COMPLETE_STATUS };
 }
 
-interface ResearchRun {
-  id: string;
-  status: string;
-  summary: string | null;
-  trace: Array<{ key: string; label: string; agent: string; status: string; detail: string | null }>;
-  artifacts: Array<{ kind: string; content: string | null }>;
-}
-
-function getReportContent(run: ResearchRun): string {
-  return (
-    run.artifacts?.find((a) => a.kind === "report")?.content?.trim() ||
-    run.artifacts?.find((a) => a.kind === "memo")?.content?.trim() ||
-    ""
-  );
-}
-
-function makeSourceId(prefix: string, value: string) {
-  return `${prefix}-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "source"}`;
-}
-
-function createSourcePart(title: string, url: string, idSeed: string): SourceMessagePart {
-  return {
-    type: "source",
-    sourceType: "url",
-    id: makeSourceId("source", idSeed),
-    title,
-    url,
-  };
-}
-
-function parseWebSearchSources(output: unknown): SourceMessagePart[] {
-  const text = getToolResultText(output);
-  if (!text.trim()) return [];
-
-  return text
-    .split(/\n\s*---\s*\n/g)
-    .map((block) => block.trim())
-    .filter(Boolean)
-    .flatMap((block, index) => {
-      const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-      const url = lines.find((line) => /^https?:\/\//i.test(line));
-      if (!url) return [];
-
-      const titleLine = lines.find((line) => line !== url) ?? url;
-      const title = titleLine.replace(/^\*\*(.*)\*\*$/, "$1").trim() || url;
-      return [createSourcePart(title, url, `${url}-${index}`)];
-    });
-}
-
-function researchResultsToSources(results: ResearchResultSource[]): SourceMessagePart[] {
-  return results
-    .filter((result): result is ResearchResultSource & { url: string } => Boolean(result.url))
-    .map((result) => createSourcePart(result.title, result.url, result.id || result.url));
-}
-
-function buildResearchContent(run: ResearchRun, results: ResearchResultSource[] = []): ThreadAssistantMessagePart[] {
-  const stepParts: ToolCallPart[] = run.trace?.map((step) => ({
-    type: "tool-call",
-    toolCallId: step.key,
-    toolName: step.label,
-    argsText: step.agent,
-    args: { agent: step.agent } as ToolCallPart["args"],
-    result: step.status === "complete" || step.status === "ready"
-      ? (step.detail ?? "")
-      : step.status === "failed"
-      ? (step.detail ?? "Fehlgeschlagen.")
-      : undefined,
-  })) ?? [];
-
-  const reportText = getReportContent(run);
-  const parts: ThreadAssistantMessagePart[] = [...stepParts];
-  if (reportText) parts.push({ type: "text", text: reportText });
-  if (!reportText && run.summary) parts.push({ type: "text", text: run.summary });
-  parts.push(...researchResultsToSources(results));
-  return parts;
-}
-
 async function* runResearch(
   matterId: string,
   query: string,
@@ -265,7 +210,7 @@ async function* runResearch(
     status: RUNNING_STATUS,
   };
 
-  const run = await apiFetch<ResearchRun>(`/v1/matters/${matterId}/research`, {
+  const run = await apiFetch<ResearchRunState>(`/v1/matters/${matterId}/research`, {
     method: "POST",
     body: JSON.stringify({ query, history, sources, deep_research: true, max_results: 8 }),
   });
@@ -280,7 +225,7 @@ async function* runResearch(
     await sleep(POLL_INTERVAL_MS);
     attempts++;
     try {
-      const runs = await apiFetch<ResearchRun[]>(`/v1/matters/${matterId}/research`);
+      const runs = await apiFetch<ResearchRunState[]>(`/v1/matters/${matterId}/research`);
       const updated = runs.find((r) => r.id === run.id);
       if (updated) {
         currentRun = updated;

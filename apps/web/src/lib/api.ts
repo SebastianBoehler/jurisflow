@@ -82,6 +82,36 @@ export async function fetchDocuments(matterId: string) {
   return request<Document[]>(`/v1/matters/${matterId}/documents`);
 }
 
+export async function fetchDocument(documentId: string) {
+  return request<Document>(`/v1/documents/${documentId}`);
+}
+
+export async function uploadDocument(matterId: string, file: File) {
+  const formData = new FormData();
+  formData.append("upload", file);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${getApiBase()}/v1/matters/${matterId}/documents`, {
+      method: "POST",
+      headers: {
+        "X-Tenant-ID": TENANT_ID,
+      },
+      body: formData,
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new Error(`Network request failed for /v1/matters/${matterId}/documents`, { cause: error });
+  }
+
+  if (!response.ok) {
+    throw await buildRequestError(response, `/v1/matters/${matterId}/documents`);
+  }
+
+  return response.json() as Promise<Document>;
+}
+
 export async function fetchDeadlines(matterId: string) {
   return request<Deadline[]>(`/v1/matters/${matterId}/deadlines`);
 }
