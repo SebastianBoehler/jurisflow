@@ -2,11 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Globe, Scale, ArrowUp, Microscope, Plus, Loader2 } from "lucide-react";
-import {
-  ThreadPrimitive,
-  AssistantRuntimeProvider,
-  useThreadRuntime,
-} from "@assistant-ui/react";
+import { ThreadPrimitive, AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
 import { AssistantMessage, UserMessage } from "@/components/chat/chat-messages";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,7 +28,6 @@ const ALL_SOURCES = [
   { id: "general_web", label: "Web" },
 ];
 
-// ----------- Composer (inside AssistantRuntimeProvider) -----------
 function ChatComposer({
   mode,
   onModeChange,
@@ -222,7 +217,6 @@ function ChatComposer({
   );
 }
 
-// ----------- Empty state starter prompts -----------
 function EmptyState() {
   const thread = useThreadRuntime();
 
@@ -259,7 +253,6 @@ function EmptyState() {
   );
 }
 
-// ----------- Root Thread component -----------
 export function Thread() {
   const [mode, setMode] = useState<ChatMode>(DEFAULT_MODE);
   const { runtime, uploadDocument } = useChatRuntime(mode);
@@ -267,7 +260,6 @@ export function Thread() {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
-        {/* Header */}
         <header className="flex items-center justify-between py-6">
           <div>
             <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground">JURISFLOW</p>
@@ -281,7 +273,6 @@ export function Thread() {
           </div>
         </header>
 
-        {/* Thread */}
         <ThreadPrimitive.Root className="flex flex-1 flex-col">
           <ThreadPrimitive.Viewport className="flex flex-1 flex-col">
             <ThreadPrimitive.If empty>
@@ -289,14 +280,10 @@ export function Thread() {
             </ThreadPrimitive.If>
             <ThreadPrimitive.If empty={false}>
               <div className="flex-1 space-y-6 pb-40 pt-6">
-                <ThreadPrimitive.Messages
-                  components={{ UserMessage, AssistantMessage }}
-                />
+                <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
               </div>
             </ThreadPrimitive.If>
           </ThreadPrimitive.Viewport>
-
-          {/* Sticky composer */}
           <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-6 pt-4">
             <ChatComposer mode={mode} onModeChange={setMode} onUpload={uploadDocument} />
           </div>
