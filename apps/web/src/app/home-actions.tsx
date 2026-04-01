@@ -35,7 +35,6 @@ export function HomeActions() {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-3">
         <Button
-          variant="ember"
           size="lg"
           onClick={handleCreateMatter}
           disabled={isCreating}

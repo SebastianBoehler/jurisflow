@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Globe, Scale, ArrowUp, Microscope, Plus, Loader2 } from "lucide-react";
 import { ThreadPrimitive, AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
 import { AssistantMessage, UserMessage } from "@/components/chat/chat-messages";
+import { ThreadEmptyState } from "@/components/chat/thread-empty-state";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { waitForDocumentProcessing } from "@/components/chat/document-upload";
-import { STARTER_PROMPTS } from "@/components/chat/starter-prompts";
 import {
   useChatRuntime,
   type ChatMode,
@@ -217,66 +217,48 @@ function ChatComposer({
   );
 }
 
-function EmptyState() {
-  const thread = useThreadRuntime();
+type ThreadProps = {
+  autoCreateMatter?: boolean;
+  className?: string;
+  onMatterIdChange?: (matterId: string) => void;
+  showHeader?: boolean;
+};
 
-  function handlePrompt(prompt: string) {
-    void thread.append({ role: "user", content: [{ type: "text", text: prompt }] });
-  }
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center pb-40 pt-12 text-center">
-      <div className="max-w-2xl">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
-          Ein Fenster. Eine Frage.
-        </p>
-        <h2 className="mt-5 text-5xl font-semibold tracking-[-0.06em] text-foreground">
-          Rechtliche Recherche ohne Dashboard.
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-          Die Unterhaltung startet mit deiner ersten Frage und verschwindet beim Neuladen.
-        </p>
-      </div>
-      <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-        {STARTER_PROMPTS.map((prompt) => (
-          <button
-            key={prompt}
-            className="rounded-full border border-border bg-card px-4 py-2.5 text-sm text-foreground transition hover:border-foreground/20 hover:bg-muted"
-            onClick={() => handlePrompt(prompt)}
-            type="button"
-          >
-            {prompt}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function Thread() {
+export function Thread({
+  autoCreateMatter = false,
+  className,
+  onMatterIdChange,
+  showHeader = true,
+}: ThreadProps) {
   const [mode, setMode] = useState<ChatMode>(DEFAULT_MODE);
-  const { runtime, uploadDocument } = useChatRuntime(mode);
+  const { ensureMatter, runtime, uploadDocument } = useChatRuntime(mode, { onMatterIdChange });
+
+  useEffect(() => {
+    if (autoCreateMatter) void ensureMatter();
+  }, [autoCreateMatter, ensureMatter]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
-        <header className="flex items-center justify-between py-6">
-          <div>
-            <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground">JURISFLOW</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-              Juristische Recherche
-            </h1>
-          </div>
-          <div className="hidden items-center gap-2 rounded-full border border-border px-3 py-2 text-sm text-muted-foreground sm:flex">
-            <Scale className="h-4 w-4" />
-            KI-Assistent
-          </div>
-        </header>
+      <div className={cn("mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8", className)}>
+        {showHeader ? (
+          <header className="flex items-center justify-between py-6">
+            <div>
+              <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground">JURISFLOW</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                Juristische Recherche
+              </h1>
+            </div>
+            <div className="hidden items-center gap-2 rounded-full border border-border px-3 py-2 text-sm text-muted-foreground sm:flex">
+              <Scale className="h-4 w-4" />
+              KI-Assistent
+            </div>
+          </header>
+        ) : null}
 
         <ThreadPrimitive.Root className="flex flex-1 flex-col">
           <ThreadPrimitive.Viewport className="flex flex-1 flex-col">
             <ThreadPrimitive.If empty>
-              <EmptyState />
+              <ThreadEmptyState />
             </ThreadPrimitive.If>
             <ThreadPrimitive.If empty={false}>
               <div className="flex-1 space-y-6 pb-40 pt-6">

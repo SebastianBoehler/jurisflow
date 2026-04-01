@@ -1,7 +1,5 @@
-import { Thread } from "@/components/chat/thread";
-
-export const dynamic = "force-dynamic";
+import { LandingPage } from "@/components/marketing/landing-page";
 
 export default function HomePage() {
-  return <Thread />;
+  return <LandingPage />;
 }

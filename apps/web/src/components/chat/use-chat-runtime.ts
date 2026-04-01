@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useLocalRuntime,
   type ChatModelAdapter,
@@ -55,6 +55,10 @@ export type UploadedDocumentState = {
   summary: string | null;
 };
 
+type UseChatRuntimeOptions = {
+  onMatterIdChange?: (matterId: string) => void;
+};
+
 function buildConversationHistory(messages: Parameters<ChatModelAdapter["run"]>[0]["messages"]): ConversationTurn[] {
   return messages.slice(0, -1).flatMap((msg) => {
     const textPart = msg.content.find(
@@ -66,10 +70,17 @@ function buildConversationHistory(messages: Parameters<ChatModelAdapter["run"]>[
   });
 }
 
-export function useChatRuntime(mode: ChatMode) {
-  const matterIdRef = useRef<string | null>(null);
+export function useChatRuntime(mode: ChatMode, options: UseChatRuntimeOptions = {}) {
+  const { onMatterIdChange } = options;
+  const [matterId, setMatterId] = useState<string | null>(null);
+  const matterIdRef = useRef<string | null>(matterId);
   const modeRef = useRef(mode);
   modeRef.current = mode;
+
+  useEffect(() => {
+    matterIdRef.current = matterId;
+    if (matterId) onMatterIdChange?.(matterId);
+  }, [matterId, onMatterIdChange]);
 
   const ensureMatter = useCallback(async (): Promise<string> => {
     if (matterIdRef.current) return matterIdRef.current;
@@ -81,6 +92,7 @@ export function useChatRuntime(mode: ChatMode) {
       }),
     });
     matterIdRef.current = matter.id;
+    setMatterId(matter.id);
     return matter.id;
   }, []);
 
@@ -112,6 +124,8 @@ export function useChatRuntime(mode: ChatMode) {
   return {
     runtime,
     uploadDocument,
+    ensureMatter,
+    matterId,
   };
 }
 

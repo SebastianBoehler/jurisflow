@@ -1,28 +1,28 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Manrope, Newsreader } from "next/font/google";
+import { Geist, Newsreader } from "next/font/google";
 import { PropsWithChildren } from "react";
 
-const sans = Manrope({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-sans"
+  variable: "--font-sans",
 });
 
 const serif = Newsreader({
   subsets: ["latin"],
-  variable: "--font-serif"
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
-  title: "Jurisflow AI",
-  description: "Chat-first Legal Research Console für deutsche Kanzleien."
+  title: "Jurisflow",
+  description: "Matter-first legal AI workspace for German legal teams.",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
-    <html lang="de">
-      <body className={`${sans.variable} ${serif.variable}`}>{children}</body>
+    <html lang="de" className={geist.variable}>
+      <body className={`${geist.variable} ${serif.variable} font-sans`}>{children}</body>
     </html>
   );
 }
