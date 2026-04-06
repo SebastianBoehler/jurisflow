@@ -29,13 +29,44 @@ const MAX_POLL = 90;
 
 type ToolCallPart = ToolCallMessagePart;
 
+async function buildApiError(response: Response, path: string) {
+  let detail = "";
+
+  try {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const payload = (await response.json()) as { detail?: string };
+      detail = payload.detail?.trim() ?? "";
+    } else {
+      detail = (await response.text()).trim();
+    }
+  } catch {
+    detail = "";
+  }
+
+  if (!detail || detail === "Internal Server Error") {
+    if (response.status >= 500) {
+      return new Error("Die Jurisflow-API ist derzeit nicht erreichbar.");
+    }
+  }
+
+  return new Error(detail || `API error ${response.status} for ${path}`);
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", "X-Tenant-ID": TENANT_ID, ...(init?.headers ?? {}) },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`API error ${res.status} for ${path}`);
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", "X-Tenant-ID": TENANT_ID, ...(init?.headers ?? {}) },
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new Error("Die Jurisflow-API ist derzeit nicht erreichbar.", { cause: error });
+  }
+
+  if (!res.ok) throw await buildApiError(res, path);
   return res.json() as Promise<T>;
 }
 
@@ -56,6 +87,7 @@ export type UploadedDocumentState = {
 };
 
 type UseChatRuntimeOptions = {
+  initialMatterId?: string | null;
   onMatterIdChange?: (matterId: string) => void;
 };
 
@@ -71,8 +103,8 @@ function buildConversationHistory(messages: Parameters<ChatModelAdapter["run"]>[
 }
 
 export function useChatRuntime(mode: ChatMode, options: UseChatRuntimeOptions = {}) {
-  const { onMatterIdChange } = options;
-  const [matterId, setMatterId] = useState<string | null>(null);
+  const { initialMatterId = null, onMatterIdChange } = options;
+  const [matterId, setMatterId] = useState<string | null>(initialMatterId);
   const matterIdRef = useRef<string | null>(matterId);
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -98,18 +130,24 @@ export function useChatRuntime(mode: ChatMode, options: UseChatRuntimeOptions = 
 
   const adapter: ChatModelAdapter = {
     async *run({ messages, abortSignal }) {
-      const matterId = await ensureMatter();
-      const { deepResearch, sources } = modeRef.current;
+      try {
+        const matterId = await ensureMatter();
+        const { deepResearch, sources } = modeRef.current;
+        const lastMsg = messages[messages.length - 1];
+        const query = lastMsg?.content.find((p) => p.type === "text")?.text ?? "";
+        const history = buildConversationHistory(messages);
 
-      const lastMsg = messages[messages.length - 1];
-      const query = lastMsg?.content.find((p) => p.type === "text")?.text ?? "";
-
-      const history = buildConversationHistory(messages);
-
-      if (deepResearch) {
-        yield* runResearch(matterId, query, history, sources.length ? sources : DEFAULT_SOURCES, abortSignal);
-      } else {
-        yield* runChatStream(matterId, query, history, abortSignal);
+        if (deepResearch) {
+          yield* runResearch(matterId, query, history, sources.length ? sources : DEFAULT_SOURCES, abortSignal);
+        } else {
+          yield* runChatStream(matterId, query, history, abortSignal);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Die Anfrage konnte nicht verarbeitet werden.";
+        yield {
+          content: [{ type: "text" as const, text: message }],
+          status: { type: "incomplete", reason: "error", error: message },
+        };
       }
     },
   };

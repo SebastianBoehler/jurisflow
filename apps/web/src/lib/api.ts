@@ -33,6 +33,12 @@ async function buildRequestError(response: Response, path: string) {
     return new Error("Der Chat ist derzeit nicht verfuegbar, weil fuer den konfigurierten OpenAI-Zugang kein Kontingent mehr verfuegbar ist.");
   }
 
+  if (!detail || detail === "Internal Server Error") {
+    if (response.status >= 500) {
+      return new Error("Die Jurisflow-API ist derzeit nicht erreichbar.");
+    }
+  }
+
   if (detail) {
     return new Error(detail);
   }

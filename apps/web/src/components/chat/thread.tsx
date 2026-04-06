@@ -5,15 +5,12 @@ import { Globe, Scale, ArrowUp, Microscope, Plus, Loader2 } from "lucide-react";
 import { ThreadPrimitive, AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
 import { AssistantMessage, UserMessage } from "@/components/chat/chat-messages";
 import { ThreadEmptyState } from "@/components/chat/thread-empty-state";
+import { ThreadUiProvider, useThreadUi } from "@/components/chat/thread-ui";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { waitForDocumentProcessing } from "@/components/chat/document-upload";
-import {
-  useChatRuntime,
-  type ChatMode,
-  type UploadedDocumentState,
-} from "@/components/chat/use-chat-runtime";
+import { useChatRuntime, type ChatMode, type UploadedDocumentState } from "@/components/chat/use-chat-runtime";
 
 const DEFAULT_MODE: ChatMode = {
   deepResearch: false,
@@ -46,12 +43,19 @@ function ChatComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const thread = useThreadRuntime();
   const isRunning = thread.getState().isRunning;
+  const { setError } = useThreadUi();
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const trimmed = value.trim();
     if (!trimmed || isRunning) return;
+    setError(null);
     setValue("");
-    void thread.append({ role: "user", content: [{ type: "text", text: trimmed }] });
+    try {
+      await thread.append({ role: "user", content: [{ type: "text", text: trimmed }] });
+    } catch (error) {
+      setValue(trimmed);
+      setError(error instanceof Error ? error.message : "Die Nachricht konnte nicht gesendet werden.");
+    }
   }
 
   function toggleSource(id: string) {
@@ -104,9 +108,7 @@ function ChatComposer({
           className="w-full resize-none border-0 bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground"
           disabled={isRunning}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-          }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit(); } }}
           placeholder="Stelle eine juristische Frage oder beschreibe deinen Fall…"
           rows={2}
           value={value}
@@ -129,7 +131,6 @@ function ChatComposer({
         >
           {uploadState?.status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </button>
-
         {uploadState ? (
           <div
             className={cn(
@@ -159,7 +160,6 @@ function ChatComposer({
           <Microscope className="h-3.5 w-3.5" />
           Deep Research
         </button>
-
         {mode.deepResearch && (
           <Popover>
             <PopoverTrigger asChild>
@@ -200,13 +200,11 @@ function ChatComposer({
             </PopoverContent>
           </Popover>
         )}
-
         <div className="flex-1" />
-
         <Button
           className="h-9 w-9 rounded-full p-0"
           disabled={isRunning || uploadState?.status === "uploading" || !value.trim()}
-          onClick={handleSubmit}
+          onClick={() => void handleSubmit()}
           size="icon"
           type="button"
         >
@@ -220,6 +218,8 @@ function ChatComposer({
 type ThreadProps = {
   autoCreateMatter?: boolean;
   className?: string;
+  initialMatterId?: string | null;
+  matterTitle?: string | null;
   onMatterIdChange?: (matterId: string) => void;
   showHeader?: boolean;
 };
@@ -227,50 +227,59 @@ type ThreadProps = {
 export function Thread({
   autoCreateMatter = false,
   className,
+  initialMatterId,
+  matterTitle,
   onMatterIdChange,
   showHeader = true,
 }: ThreadProps) {
   const [mode, setMode] = useState<ChatMode>(DEFAULT_MODE);
-  const { ensureMatter, runtime, uploadDocument } = useChatRuntime(mode, { onMatterIdChange });
-
+  const [error, setError] = useState<string | null>(null);
+  const { ensureMatter, runtime, uploadDocument } = useChatRuntime(mode, {
+    initialMatterId,
+    onMatterIdChange,
+  });
   useEffect(() => {
     if (autoCreateMatter) void ensureMatter();
   }, [autoCreateMatter, ensureMatter]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className={cn("mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8", className)}>
-        {showHeader ? (
-          <header className="flex items-center justify-between py-6">
-            <div>
-              <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground">JURISFLOW</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                Juristische Recherche
-              </h1>
-            </div>
-            <div className="hidden items-center gap-2 rounded-full border border-border px-3 py-2 text-sm text-muted-foreground sm:flex">
-              <Scale className="h-4 w-4" />
-              KI-Assistent
-            </div>
-          </header>
-        ) : null}
-
-        <ThreadPrimitive.Root className="flex flex-1 flex-col">
-          <ThreadPrimitive.Viewport className="flex flex-1 flex-col">
-            <ThreadPrimitive.If empty>
-              <ThreadEmptyState />
-            </ThreadPrimitive.If>
-            <ThreadPrimitive.If empty={false}>
-              <div className="flex-1 space-y-6 pb-40 pt-6">
-                <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+      <ThreadUiProvider value={{ error, setError }}>
+        <div className={cn("flex min-h-0 flex-1 flex-col px-4 sm:px-6", className)}>
+          {showHeader ? (
+            <header className="flex items-center justify-between py-6">
+              <div>
+                <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground">JURISFLOW</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                  Juristische Recherche
+                </h1>
               </div>
-            </ThreadPrimitive.If>
-          </ThreadPrimitive.Viewport>
-          <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-6 pt-4">
-            <ChatComposer mode={mode} onModeChange={setMode} onUpload={uploadDocument} />
-          </div>
-        </ThreadPrimitive.Root>
-      </div>
+              <div className="hidden items-center gap-2 rounded-full border border-border px-3 py-2 text-sm text-muted-foreground sm:flex">
+                <Scale className="h-4 w-4" />
+                KI-Assistent
+              </div>
+            </header>
+          ) : null}
+          <ThreadPrimitive.Root className="flex flex-1 flex-col">
+            <ThreadPrimitive.Viewport className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+              <ThreadPrimitive.If empty>
+                <div className="mx-auto flex w-full max-w-[920px] flex-1"><ThreadEmptyState matterTitle={matterTitle} mode={initialMatterId ? "existing" : "new"} /></div>
+              </ThreadPrimitive.If>
+              <ThreadPrimitive.If empty={false}>
+                <div className="mx-auto flex w-full max-w-[920px] flex-1 space-y-6 pb-40 pt-6">
+                  <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+                </div>
+              </ThreadPrimitive.If>
+            </ThreadPrimitive.Viewport>
+            <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-6 pt-4">
+              <div className="mx-auto w-full max-w-[920px] space-y-3">
+                {error ? <p className="rounded-[1rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+                <ChatComposer mode={mode} onModeChange={setMode} onUpload={uploadDocument} />
+              </div>
+            </div>
+          </ThreadPrimitive.Root>
+        </div>
+      </ThreadUiProvider>
     </AssistantRuntimeProvider>
   );
 }

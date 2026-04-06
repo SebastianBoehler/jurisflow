@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Globe, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Globe, Loader2, Scale } from "lucide-react";
 import {
   MessagePrimitive,
   useMessage,
@@ -29,7 +29,7 @@ function ToolCallBlock({
   const hasExpandableResult = resultText.trim().length > 0;
 
   return (
-    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
+    <div className="rounded-[1.1rem] border border-border/70 bg-muted/35 px-3 py-2.5 text-sm">
       <button
         className="flex w-full items-center gap-2 text-left"
         onClick={() => hasExpandableResult && setOpen((value) => !value)}
@@ -61,7 +61,7 @@ function ToolCallBlock({
 
 function SourcesList({ sources }: { sources: readonly SourceMessagePart[] }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-4">
+    <div className="rounded-[1.15rem] border border-border/70 bg-muted/25 p-4">
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
         Quellen
       </p>
@@ -90,7 +90,7 @@ function SourcesList({ sources }: { sources: readonly SourceMessagePart[] }) {
 export function UserMessage() {
   return (
     <MessagePrimitive.Root className="flex justify-end">
-      <div className="max-w-3xl rounded-[26px] rounded-br-md bg-foreground px-5 py-4 text-[15px] leading-7 text-background">
+      <div className="max-w-[82%] rounded-[1.5rem] rounded-br-md bg-foreground px-5 py-4 text-[15px] leading-7 text-background shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
@@ -142,8 +142,12 @@ function AssistantMessageContent() {
 
 export function AssistantMessage() {
   return (
-    <MessagePrimitive.Root className="flex justify-start">
-      <div className="max-w-4xl space-y-3 rounded-[28px] rounded-bl-md border border-border bg-card px-5 py-5 shadow-sm">
+    <MessagePrimitive.Root className="flex justify-start gap-3">
+      <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-[1rem] border border-border/70 bg-background text-foreground shadow-sm">
+        <Scale className="size-4" />
+      </div>
+      <div className="max-w-4xl flex-1 space-y-3 rounded-[1.65rem] rounded-bl-md border border-border/70 bg-card px-5 py-5 shadow-[0_12px_35px_rgba(15,23,42,0.06)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Jurisflow</p>
         <AssistantMessageContent />
       </div>
     </MessagePrimitive.Root>

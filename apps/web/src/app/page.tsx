@@ -1,5 +1,7 @@
-import { LandingPage } from "@/components/marketing/landing-page";
+import { WorkspaceShell } from "@/components/workspace/workspace-shell";
+
+export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <LandingPage />;
+  return <WorkspaceShell />;
 }
